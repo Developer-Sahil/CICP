@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Success - Campus Complaint Portal{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto text-center">
+    <!-- Success Icon -->
+    <div class="mb-8">
+        <div class="mx-auto w-24 h-24 bg-green-100 rounded-full flex items-center justify-center">
+            <svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Success Message -->
+    <h2 class="text-4xl font-bold text-gray-900 mb-4">
+        Complaint Submitted Successfully!
+    </h2>
+    
+    <p class="text-xl text-gray-600 mb-8">
+        Thank you for reporting this issue. Your complaint has been processed and will be reviewed by the administration.
+    </p>
+
+    <!-- What Happens Next -->
+    <div class="bg-white rounded-lg shadow-lg p-8 mb-8 text-left">
+        <h3 class="text-2xl font-bold text-gray-900 mb-6 text-center">What Happens Next?</h3>
+        
+        <div class="space-y-4">
+            <div class="flex items-start">
+                <div class="bg-blue-100 text-blue-600 rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0 mr-4">
+                    1
+                </div>
+                <div>
+                    <h4 class="font-bold text-gray-900 mb-1">AI Processing</h4>
+                    <p class="text-gray-600">Your complaint has been enhanced and categorized using AI for better clarity and impact.</p>
+                </div>
+            </div>
+
+            <div class="flex items-start">
+                <div class="bg-blue-100 text-blue-600 rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0 mr-4">
+                    2
+                </div>
+                <div>
+                    <h4 class="font-bold text-gray-900 mb-1">Clustering</h4>
+                    <p class="text-gray-600">It's been grouped with similar complaints to show the administration this is a widespread issue.</p>
+                </div>
+            </div>
+
+            <div class="flex items-start">
+                <div class="bg-blue-100 text-blue-600 rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0 mr-4">
+                    3
+                </div>
+                <div>
+                    <h4 class="font-bold text-gray-900 mb-1">Admin Review</h4>
+                    <p class="text-gray-600">Administrators can now see this issue in their dashboard with proper priority and context.</p>
+                </div>
+            </div>
+
+            <div class="flex items-start">
+                <div class="bg-blue-100 text-blue-600 rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0 mr-4">
+                    4
+                </div>
+                <div>
+                    <h4 class="font-bold text-gray-900 mb-1">Action & Resolution</h4>
+                    <p class="text-gray-600">The relevant department will be notified and work towards resolving the issue.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <a href="{{ url_for('submit') }}" class="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors">
+            Submit Another Complaint
+        </a>
+        <a href="{{ url_for('dashboard') }}" class="px-8 py-3 bg-white text-blue-600 border-2 border-blue-600 rounded-lg hover:bg-blue-50 font-medium transition-colors">
+            View Dashboard
+        </a>
+        <a href="{{ url_for('index') }}" class="px-8 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-colors">
+            Go Home
+        </a>
+    </div>
+
+    <!-- Information Box -->
+    <div class="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6 text-left">
+        <h4 class="font-bold text-blue-900 mb-3">💡 Did You Know?</h4>
+        <p class="text-blue-800 mb-2">
+            Your complaint helps improve campus life for everyone. By reporting issues, you're contributing to:
+        </p>
+        <ul class="space-y-2 text-blue-800">
+            <li>✓ Data-driven decision making by administration</li>
+            <li>✓ Prioritization of widespread issues</li>
+            <li>✓ Better resource allocation</li>
+            <li>✓ A more transparent campus environment</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

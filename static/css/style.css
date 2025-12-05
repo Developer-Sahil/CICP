@@ -1,0 +1,138 @@
+/* Custom styles for Campus Complaint Portal */
+
+/* Smooth transitions */
+* {
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-in;
+}
+
+/* Loading spinner */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinner {
+    animation: spin 1s linear infinite;
+}
+
+/* Card hover effects */
+.card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* Button effects */
+button:active {
+    transform: scale(0.98);
+}
+
+/* Form focus states */
+input:focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Severity badges */
+.badge-high {
+    background-color: #FEE2E2;
+    color: #991B1B;
+}
+
+.badge-medium {
+    background-color: #FEF3C7;
+    color: #92400E;
+}
+
+.badge-low {
+    background-color: #D1FAE5;
+    color: #065F46;
+}
+
+/* Chart container */
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+
+/* Details element styling */
+details summary {
+    cursor: pointer;
+    user-select: none;
+}
+
+details summary::-webkit-details-marker {
+    display: none;
+}
+
+details[open] summary {
+    margin-bottom: 0.5rem;
+}
+
+/* Responsive text */
+@media (max-width: 640px) {
+    h1 {
+        font-size: 2rem;
+    }
+    
+    h2 {
+        font-size: 1.5rem;
+    }
+    
+    .stat-card {
+        padding: 1rem;
+    }
+}
+
+/* Print styles */
+@media print {
+    nav,
+    footer,
+    button {
+        display: none;
+    }
+    
+    .no-print {
+        display: none;
+    }
+}

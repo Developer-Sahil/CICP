@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}{{ cluster.cluster_name }} - Campus Complaint Portal{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- Back Button -->
+    <a href="{{ url_for('dashboard') }}" class="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium mb-6">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+        Back to Dashboard
+    </a>
+
+    <!-- Cluster Header -->
+    <div class="bg-white rounded-lg shadow-lg p-8 mb-6">
+        <div class="mb-6">
+            <h2 class="text-3xl font-bold text-gray-900 mb-2">{{ cluster.cluster_name }}</h2>
+            <div class="flex items-center space-x-4">
+                <span class="px-3 py-1 rounded-full text-sm font-medium
+                    {% if cluster.severity == 'high' %}bg-red-100 text-red-800
+                    {% elif cluster.severity == 'medium' %}bg-yellow-100 text-yellow-800
+                    {% else %}bg-green-100 text-green-800{% endif %}">
+                    {{ cluster.severity.upper() }} SEVERITY
+                </span>
+                <span class="text-gray-600">{{ cluster.count }} complaint{{ 's' if cluster.count != 1 else '' }}</span>
+                <span class="text-gray-500">•</span>
+                <span class="text-gray-600">Last updated: {{ cluster.last_updated.strftime('%b %d, %Y') }}</span>
+            </div>
+        </div>
+
+        <!-- Cluster Stats -->
+        <div class="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div class="text-center">
+                <div class="text-2xl font-bold text-gray-900">{{ cluster.count }}</div>
+                <div class="text-sm text-gray-600">Total Reports</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-gray-900">{{ cluster.category }}</div>
+                <div class="text-sm text-gray-600">Category</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold 
+                    {% if cluster.severity == 'high' %}text-red-600
+                    {% elif cluster.severity == 'medium' %}text-yellow-600
+                    {% else %}text-green-600{% endif %}">
+                    {{ cluster.severity.upper() }}
+                </div>
+                <div class="text-sm text-gray-600">Priority Level</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- All Complaints in Cluster -->
+    <div class="bg-white rounded-lg shadow-lg p-8">
+        <h3 class="text-xl font-bold text-gray-900 mb-6">All Related Complaints</h3>
+        
+        {% if complaints %}
+        <div class="space-y-4">
+            {% for complaint in complaints %}
+            <div class="p-5 bg-gray-50 rounded-lg border-l-4 
+                {% if complaint.severity == 'high' %}border-red-500
+                {% elif complaint.severity == 'medium' %}border-yellow-500
+                {% else %}border-green-500{% endif %}">
+                
+                <!-- Complaint Header -->
+                <div class="flex items-start justify-between mb-3">
+                    <div>
+                        <span class="text-xs font-medium text-gray-500">
+                            Complaint #{{ complaint.id }}
+                        </span>
+                    </div>
+                    <span class="text-xs text-gray-500">
+                        {{ complaint.timestamp.strftime('%b %d, %Y at %I:%M %p') }}
+                    </span>
+                </div>
+
+                <!-- Complaint Text -->
+                <div class="mb-3">
+                    <p class="text-gray-800 leading-relaxed">{{ complaint.rewritten_text }}</p>
+                </div>
+
+                <!-- Original Text Toggle -->
+                <details class="mb-3">
+                    <summary class="text-sm text-blue-600 hover:text-blue-800 cursor-pointer">
+                        View original complaint
+                    </summary>
+                    <div class="mt-2 p-3 bg-white rounded border border-gray-200">
+                        <p class="text-sm text-gray-700 italic">{{ complaint.raw_text }}</p>
+                    </div>
+                </details>
+
+                <!-- Complaint Footer -->
+                <div class="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-gray-200">
+                    <span>
+                        {% if complaint.student_id %}
+                            Student ID: {{ complaint.student_id[:3] }}***{{ complaint.student_id[-2:] if complaint.student_id|length > 5 else '' }}
+                        {% else %}
+                            Anonymous Submission
+                        {% endif %}
+                    </span>
+                    <span class="px-2 py-1 rounded
+                        {% if complaint.severity == 'high' %}bg-red-100 text-red-800
+                        {% elif complaint.severity == 'medium' %}bg-yellow-100 text-yellow-800
+                        {% else %}bg-green-100 text-green-800{% endif %}">
+                        {{ complaint.severity }}
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-600 text-center py-8">No complaints in this cluster yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Action Panel -->
+    <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <h4 class="font-bold text-blue-900 mb-3">Recommended Actions</h4>
+        <ul class="space-y-2 text-blue-800 text-sm">
+            {% if cluster.severity == 'high' %}
+            <li>⚠️ <strong>Urgent:</strong> This is a high-priority issue affecting {{ cluster.count }} student{{ 's' if cluster.count != 1 else '' }}</li>
+            <li>📞 Contact relevant department immediately</li>
+            <li>📋 Schedule emergency meeting to address this concern</li>
+            {% elif cluster.severity == 'medium' %}
+            <li>⚡ <strong>Important:</strong> {{ cluster.count }} student{{ 's' if cluster.count != 1 else '' }} reported this issue</li>
+            <li>📧 Send acknowledgment to affected students</li>
+            <li>📅 Schedule review meeting within the week</li>
+            {% else %}
+            <li>✓ This issue has been reported by {{ cluster.count }} student{{ 's' if cluster.count != 1 else '' }}</li>
+            <li>📝 Add to the next department review agenda</li>
+            <li>💡 Consider this for future improvements</li>
+            {% endif %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

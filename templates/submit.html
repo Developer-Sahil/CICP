@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}Submit Complaint - Campus Complaint Portal{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="bg-white rounded-lg shadow-lg p-8">
+        <h2 class="text-3xl font-bold text-gray-900 mb-2">Submit a Complaint</h2>
+        <p class="text-gray-600 mb-8">Let us know about any issues you're facing on campus. We're here to help.</p>
+
+        {% if error %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+            <strong>Error:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('submit') }}" id="complaintForm" class="space-y-6">
+            <!-- Category Selection -->
+            <div>
+                <label for="category" class="block text-sm font-medium text-gray-700 mb-2">
+                    Category <span class="text-red-500">*</span>
+                </label>
+                <select 
+                    name="category" 
+                    id="category" 
+                    required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                    <option value="">Select a category</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.name }}">{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Complaint Text -->
+            <div>
+                <label for="raw_text" class="block text-sm font-medium text-gray-700 mb-2">
+                    Describe Your Issue <span class="text-red-500">*</span>
+                </label>
+                <textarea 
+                    name="raw_text" 
+                    id="raw_text"
+                    required
+                    rows="6"
+                    placeholder="Describe the issue you're facing in detail..."
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                ></textarea>
+                <p class="text-sm text-gray-500 mt-2">Be as specific as possible. Include when, where, and what happened.</p>
+            </div>
+
+            <!-- AI Rewrite Button -->
+            <div>
+                <button 
+                    type="button" 
+                    id="rewriteBtn"
+                    class="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center justify-center"
+                >
+                    <span id="rewriteText">✨ Rewrite Formally with AI</span>
+                    <span id="rewriteLoader" class="hidden ml-2">
+                        <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </span>
+                </button>
+            </div>
+
+            <!-- Rewritten Text Display -->
+            <div id="rewrittenContainer" class="hidden">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <label class="block text-sm font-medium text-blue-900 mb-2">
+                        AI-Enhanced Complaint
+                    </label>
+                    <p id="rewrittenText" class="text-gray-800 whitespace-pre-wrap"></p>
+                </div>
+            </div>
+
+            <!-- Student ID (Optional) -->
+            <div>
+                <label for="student_id" class="block text-sm font-medium text-gray-700 mb-2">
+                    Student ID (Optional)
+                </label>
+                <input 
+                    type="text" 
+                    name="student_id" 
+                    id="student_id"
+                    placeholder="Enter your student ID (optional)"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+            </div>
+
+            <!-- Anonymous Checkbox -->
+            <div class="flex items-center">
+                <input 
+                    type="checkbox" 
+                    name="anonymous" 
+                    id="anonymous"
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label for="anonymous" class="ml-2 text-sm text-gray-700">
+                    Submit anonymously (recommended if reporting sensitive issues)
+                </label>
+            </div>
+
+            <!-- Submit Button -->
+            <div>
+                <button 
+                    type="submit"
+                    class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium text-lg"
+                >
+                    Submit Complaint
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Information Box -->
+    <div class="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <h3 class="font-bold text-blue-900 mb-2">What happens next?</h3>
+        <ul class="space-y-2 text-blue-800">
+            <li>✓ Your complaint will be processed by AI for better clarity</li>
+            <li>✓ It will be automatically categorized and assessed for severity</li>
+            <li>✓ Similar complaints will be grouped together</li>
+            <li>✓ Administrators will see aggregated data to prioritize actions</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.getElementById('rewriteBtn').addEventListener('click', async function() {
+    const rawText = document.getElementById('raw_text').value;
+    
+    if (!rawText.trim()) {
+        alert('Please enter a complaint first');
+        return;
+    }
+    
+    // Show loader
+    document.getElementById('rewriteText').textContent = 'Rewriting...';
+    document.getElementById('rewriteLoader').classList.remove('hidden');
+    this.disabled = true;
+    
+    try {
+        const response = await fetch('/api/rewrite', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text: rawText })
+        });
+        
+        const data = await response.json();
+        
+        if (data.rewritten_text) {
+            document.getElementById('rewrittenText').textContent = data.rewritten_text;
+            document.getElementById('rewrittenContainer').classList.remove('hidden');
+        } else {
+            alert('Error rewriting complaint. Please try again.');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error connecting to AI service. Please try again.');
+    } finally {
+        document.getElementById('rewriteText').textContent = '✨ Rewrite Formally with AI';
+        document.getElementById('rewriteLoader').classList.add('hidden');
+        this.disabled = false;
+    }
+});
+
+// Anonymous checkbox logic
+document.getElementById('anonymous').addEventListener('change', function() {
+    const studentIdField = document.getElementById('student_id');
+    if (this.checked) {
+        studentIdField.value = '';
+        studentIdField.disabled = true;
+        studentIdField.classList.add('bg-gray-100');
+    } else {
+        studentIdField.disabled = false;
+        studentIdField.classList.remove('bg-gray-100');
+    }
+});
+</script>
+{% endblock %}

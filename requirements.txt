@@ -1,0 +1,7 @@
+Flask
+Flask-SQLAlchemy
+python-dotenv
+google-generativeai
+numpy
+scikit-learn
+requests
