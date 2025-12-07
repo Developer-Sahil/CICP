@@ -13,6 +13,7 @@ A centralized, AI-powered web platform for students to report campus issues and 
   - ✅ **Verification scoring system** for accuracy
   - ✅ **Automatic override** for safety
 - **Intelligent Clustering**: Groups similar complaints using embeddings and similarity detection
+- - **Upvoting Mechanism (NEW)** – Students can upvote complaints, UI button added in Dashboard & Cluster pages, prevents spam, updates counts live.
 - **Admin Dashboard**: Real-time analytics, charts, and insights
 - **Anonymous Reporting**: Option to submit complaints anonymously
 - **Responsive Design**: Works on desktop, tablet, and mobile devices
@@ -252,6 +253,23 @@ python test_severity.py
 # Test specific complaint
 python test_severity.py "Student hospitalized with food poisoning"
 ```
+## ⭐ Upvoting Mechanism 
+
+A student-driven feature that allows users to **upvote complaints** to highlight frequently reported issues.
+
+### What it includes:
+- 👍 Upvote button on each complaint (Cluster + Dashboard pages)
+- 🔢 Upvote count updated live
+- 🔒 Spam prevention – button disables after clicking
+- 🎨 UI updates: button changes to “Upvoted (X)”
+- 📊 Total upvotes shown in each cluster header
+- Fully connected to backend via `/complaint/<id>/upvote` API
+
+### Why it's useful:
+- Helps admins understand which issues affect most students  
+- Improves prioritization of common problems (WiFi, mess food, hostel issues)  
+- Enhances transparency and student engagement
+
 
 ## 🛠️ Development
 
