@@ -1,20 +1,28 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for
-from database.models import db, Complaint, IssueCluster, Category
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from database.models import db, Complaint, IssueCluster, Category, User
 from ai.rewrite import rewrite_complaint
 from ai.classify import classify_category
 from ai.severity import detect_severity
 from ai.embed import generate_embedding
 from ai.cluster import assign_cluster, update_clusters
 from utils.helpers import get_dashboard_stats, get_recent_complaints
+from auth.auth import (
+    login_required, admin_required, get_current_user,
+    login_user, logout_user, update_last_login,
+    validate_email, validate_student_id, validate_password,
+    sanitize_input, check_rate_limit
+)
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError, OperationalError
+from sqlalchemy import func
 import config
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = config.DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = config.SECRET_KEY
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
 # Configure logging
 logging.basicConfig(
@@ -77,6 +85,12 @@ except Exception as e:
     logger.critical(f"Failed to initialize database: {str(e)}")
     logger.critical("Application may not function correctly")
 
+# Context processor to make current_user available in all templates
+@app.context_processor
+def inject_user():
+    """Make current user available in all templates"""
+    return dict(current_user=get_current_user())
+
 # Error handlers
 @app.errorhandler(404)
 def not_found_error(error):
@@ -103,6 +117,10 @@ def handle_exception(e):
                          error_code=500, 
                          error_message="An unexpected error occurred"), 500
 
+# ============================================================================
+# PUBLIC ROUTES
+# ============================================================================
+
 @app.route('/')
 def index():
     """Landing page"""
@@ -111,6 +129,384 @@ def index():
     except Exception as e:
         logger.error(f"Error rendering index: {str(e)}")
         return "Error loading page", 500
+
+# ============================================================================
+# AUTHENTICATION ROUTES
+# ============================================================================
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """User registration page"""
+    # Redirect if already logged in
+    if get_current_user():
+        return redirect(url_for('profile'))
+    
+    if request.method == 'GET':
+        return render_template('register.html')
+    
+    try:
+        # Get form data
+        name = sanitize_input(request.form.get('name', '').strip())
+        student_id = sanitize_input(request.form.get('student_id', '').strip().upper())
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        department = sanitize_input(request.form.get('department', '').strip())
+        year = request.form.get('year', type=int)
+        hostel = sanitize_input(request.form.get('hostel', '').strip())
+        room_number = sanitize_input(request.form.get('room_number', '').strip())
+        phone = sanitize_input(request.form.get('phone', '').strip())
+        
+        # Validation
+        if not all([name, student_id, email, password, confirm_password]):
+            return render_template('register.html', 
+                                 error="Please fill in all required fields")
+        
+        if password != confirm_password:
+            return render_template('register.html', 
+                                 error="Passwords do not match")
+        
+        # Validate email
+        if not validate_email(email):
+            return render_template('register.html', 
+                                 error="Invalid email address")
+        
+        # Validate student ID
+        if not validate_student_id(student_id):
+            return render_template('register.html', 
+                                 error="Invalid student ID format (6-15 alphanumeric characters)")
+        
+        # Validate password strength
+        is_valid, error_msg = validate_password(password)
+        if not is_valid:
+            return render_template('register.html', error=error_msg)
+        
+        # Check if user already exists
+        existing_user = User.query.filter(
+            (User.email == email) | (User.student_id == student_id)
+        ).first()
+        
+        if existing_user:
+            if existing_user.email == email:
+                return render_template('register.html', 
+                                     error="Email already registered")
+            else:
+                return render_template('register.html', 
+                                     error="Student ID already registered")
+        
+        # Create new user
+        user = User(
+            name=name,
+            student_id=student_id,
+            email=email,
+            department=department if department else None,
+            year=year if year else None,
+            hostel=hostel if hostel else None,
+            room_number=room_number if room_number else None,
+            phone=phone if phone else None
+        )
+        user.set_password(password)
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        logger.info(f"New user registered: {student_id}")
+        
+        # Log in the user
+        login_user(user)
+        update_last_login(user)
+        
+        flash('Registration successful! Welcome to the portal.', 'success')
+        return redirect(url_for('profile'))
+        
+    except IntegrityError as e:
+        db.session.rollback()
+        logger.error(f"Database integrity error during registration: {e}")
+        return render_template('register.html', 
+                             error="Email or Student ID already exists")
+    
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error during registration: {e}")
+        return render_template('register.html', 
+                             error="An error occurred. Please try again.")
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """User login page"""
+    # Redirect if already logged in
+    if get_current_user():
+        return redirect(url_for('profile'))
+    
+    if request.method == 'GET':
+        return render_template('login.html')
+    
+    try:
+        identifier = sanitize_input(request.form.get('identifier', '').strip())
+        password = request.form.get('password', '')
+        remember_me = request.form.get('remember_me') == 'on'
+        
+        if not identifier or not password:
+            return render_template('login.html', 
+                                 error="Please enter both email/student ID and password")
+        
+        # Rate limiting
+        allowed, remaining = check_rate_limit(identifier, 'login_attempt', limit=5)
+        if not allowed:
+            logger.warning(f"Rate limit exceeded for login: {identifier}")
+            return render_template('login.html', 
+                                 error="Too many login attempts. Please try again in 15 minutes.")
+        
+        # Find user by email or student ID
+        user = User.query.filter(
+            (User.email == identifier.lower()) | 
+            (User.student_id == identifier.upper())
+        ).first()
+        
+        if not user or not user.check_password(password):
+            return render_template('login.html', 
+                                 error="Invalid email/student ID or password")
+        
+        if not user.is_active:
+            return render_template('login.html', 
+                                 error="Your account has been deactivated. Please contact support.")
+        
+        # Log in user
+        login_user(user)
+        update_last_login(user)
+        
+        logger.info(f"User logged in: {user.student_id}")
+        
+        # Set session lifetime
+        if remember_me:
+            session.permanent = True
+        
+        flash(f'Welcome back, {user.name}!', 'success')
+        
+        # Redirect to intended page or profile
+        next_page = request.args.get('next')
+        if next_page and next_page.startswith('/'):
+            return redirect(next_page)
+        return redirect(url_for('profile'))
+        
+    except Exception as e:
+        logger.error(f"Error during login: {e}")
+        return render_template('login.html', 
+                             error="An error occurred. Please try again.")
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    """Log out current user"""
+    user = get_current_user()
+    if user:
+        logger.info(f"User logged out: {user['student_id']}")
+    
+    logout_user()
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('index'))
+
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    """Forgot password page"""
+    if request.method == 'GET':
+        return render_template('forgot_password.html')
+    
+    try:
+        email = request.form.get('email', '').strip().lower()
+        
+        if not validate_email(email):
+            return render_template('forgot_password.html',
+                                 error="Invalid email address")
+        
+        user = User.query.filter_by(email=email).first()
+        
+        # Don't reveal if email exists (security)
+        flash('If an account exists with that email, you will receive password reset instructions.', 'info')
+        
+        if user:
+            from auth.auth import create_reset_token
+            token = create_reset_token(user)
+            
+            # TODO: Send email with reset link
+            # For now, just log it
+            logger.info(f"Password reset requested for: {email}")
+            logger.info(f"Reset token: {token}")
+            # In production: send_reset_email(user.email, token)
+        
+        return redirect(url_for('login'))
+        
+    except Exception as e:
+        logger.error(f"Error in forgot password: {e}")
+        flash('An error occurred. Please try again.', 'danger')
+        return render_template('forgot_password.html')
+
+# ============================================================================
+# USER PROFILE ROUTES
+# ============================================================================
+
+@app.route('/profile')
+@login_required
+def profile():
+    """User profile page"""
+    try:
+        current_user = get_current_user()
+        user = User.query.get(current_user['id'])
+        
+        if not user:
+            flash('User not found.', 'danger')
+            return redirect(url_for('logout'))
+        
+        # Get user statistics
+        total_complaints = user.get_complaint_count()
+        high_severity = user.complaints.filter_by(severity='high').count()
+        medium_severity = user.complaints.filter_by(severity='medium').count()
+        low_severity = user.complaints.filter_by(severity='low').count()
+        
+        stats = {
+            'total_complaints': total_complaints,
+            'high_severity': high_severity,
+            'medium_severity': medium_severity,
+            'low_severity': low_severity
+        }
+        
+        # Get recent complaints
+        recent_complaints = user.get_recent_complaints(limit=5)
+        
+        # Category breakdown
+        category_breakdown = dict(
+            db.session.query(
+                Complaint.category,
+                func.count(Complaint.id)
+            ).filter(
+                Complaint.user_id == user.id
+            ).group_by(
+                Complaint.category
+            ).all()
+        )
+        
+        return render_template('profile.html',
+                             user=user,
+                             stats=stats,
+                             recent_complaints=recent_complaints,
+                             category_breakdown=category_breakdown)
+        
+    except Exception as e:
+        logger.error(f"Error loading profile: {e}")
+        flash('Error loading profile.', 'danger')
+        return redirect(url_for('index'))
+
+
+@app.route('/my-complaints')
+@login_required
+def my_complaints():
+    """View all user complaints"""
+    try:
+        current_user = get_current_user()
+        user = User.query.get(current_user['id'])
+        
+        # Pagination
+        page = request.args.get('page', 1, type=int)
+        per_page = 10
+        
+        complaints = user.complaints.order_by(
+            Complaint.timestamp.desc()
+        ).paginate(page=page, per_page=per_page, error_out=False)
+        
+        return render_template('my_complaints.html',
+                             complaints=complaints,
+                             user=user)
+        
+    except Exception as e:
+        logger.error(f"Error loading complaints: {e}")
+        flash('Error loading complaints.', 'danger')
+        return redirect(url_for('profile'))
+
+
+@app.route('/edit-profile', methods=['GET', 'POST'])
+@login_required
+def edit_profile():
+    """Edit user profile"""
+    current_user = get_current_user()
+    user = User.query.get(current_user['id'])
+    
+    if request.method == 'GET':
+        return render_template('edit_profile.html', user=user)
+    
+    try:
+        # Update user information
+        user.name = sanitize_input(request.form.get('name', '').strip())
+        user.department = sanitize_input(request.form.get('department', '').strip()) or None
+        user.year = request.form.get('year', type=int) or None
+        user.hostel = sanitize_input(request.form.get('hostel', '').strip()) or None
+        user.room_number = sanitize_input(request.form.get('room_number', '').strip()) or None
+        user.phone = sanitize_input(request.form.get('phone', '').strip()) or None
+        
+        db.session.commit()
+        
+        # Update session
+        session['name'] = user.name
+        
+        flash('Profile updated successfully!', 'success')
+        return redirect(url_for('profile'))
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating profile: {e}")
+        flash('Error updating profile.', 'danger')
+        return render_template('edit_profile.html', user=user)
+
+
+@app.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    """Change user password"""
+    if request.method == 'GET':
+        return render_template('change_password.html')
+    
+    try:
+        current_user = get_current_user()
+        user = User.query.get(current_user['id'])
+        
+        current_password = request.form.get('current_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        # Validate current password
+        if not user.check_password(current_password):
+            return render_template('change_password.html',
+                                 error="Current password is incorrect")
+        
+        # Validate new password
+        if new_password != confirm_password:
+            return render_template('change_password.html',
+                                 error="New passwords do not match")
+        
+        is_valid, error_msg = validate_password(new_password)
+        if not is_valid:
+            return render_template('change_password.html', error=error_msg)
+        
+        # Update password
+        user.set_password(new_password)
+        db.session.commit()
+        
+        logger.info(f"Password changed for user: {user.student_id}")
+        
+        flash('Password changed successfully!', 'success')
+        return redirect(url_for('profile'))
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error changing password: {e}")
+        return render_template('change_password.html',
+                             error="An error occurred. Please try again.")
+
+# ============================================================================
+# COMPLAINT SUBMISSION ROUTES
+# ============================================================================
 
 @app.route('/submit', methods=['GET', 'POST'])
 def submit():
@@ -153,6 +549,9 @@ def submit():
     
     if request.method == 'POST':
         try:
+            # Get current user if logged in
+            current_user = get_current_user()
+            
             # Get form data with validation
             raw_text = request.form.get('raw_text', '').strip()
             if not raw_text:
@@ -170,7 +569,14 @@ def submit():
             
             category_name = request.form.get('category', '').strip()
             anonymous = request.form.get('anonymous') == 'on'
-            student_id = None if anonymous else request.form.get('student_id', 'anonymous').strip()
+            
+            # Determine student_id
+            if current_user and not anonymous:
+                student_id = current_user['student_id']
+            elif not anonymous:
+                student_id = request.form.get('student_id', 'anonymous').strip()
+            else:
+                student_id = None
             
             # AI Processing Pipeline with error handling
             try:
@@ -215,6 +621,7 @@ def submit():
             
             # 5. Create complaint
             complaint = Complaint(
+                user_id=current_user['id'] if current_user else None,
                 student_id=student_id if student_id else None,
                 raw_text=raw_text,
                 rewritten_text=rewritten_text,
@@ -276,6 +683,7 @@ def submit():
                                  categories=categories,
                                  error="An unexpected error occurred. Please try again.")
 
+
 @app.route('/success')
 def success():
     """Success page after complaint submission"""
@@ -285,9 +693,13 @@ def success():
         logger.error(f"Error rendering success page: {str(e)}")
         return redirect(url_for('index'))
 
+# ============================================================================
+# DASHBOARD ROUTES
+# ============================================================================
+
 @app.route('/dashboard')
 def dashboard():
-    """Admin dashboard"""
+    """Admin dashboard - accessible to all but shows different data for admins"""
     try:
         stats = get_dashboard_stats()
         clusters = IssueCluster.query.order_by(IssueCluster.count.desc()).limit(20).all()
@@ -314,6 +726,7 @@ def dashboard():
                              recent=[],
                              error="Error loading dashboard")
 
+
 @app.route('/cluster/<int:cluster_id>')
 def cluster_detail(cluster_id):
     """Cluster detail page"""
@@ -339,6 +752,10 @@ def cluster_detail(cluster_id):
                              error_code=500, 
                              error_message="Error loading cluster details"), 500
 
+# ============================================================================
+# API ROUTES
+# ============================================================================
+
 @app.route('/api/rewrite', methods=['POST'])
 def api_rewrite():
     """API endpoint for AI rewriting"""
@@ -363,6 +780,7 @@ def api_rewrite():
         logger.error(f"Error in rewrite API: {str(e)}")
         return jsonify({'error': 'Failed to rewrite text. Please try again.'}), 500
 
+
 @app.route('/api/stats')
 def api_stats():
     """API endpoint for dashboard statistics"""
@@ -373,7 +791,10 @@ def api_stats():
         logger.error(f"Error in stats API: {str(e)}")
         return jsonify({'error': 'Failed to fetch statistics'}), 500
 
-# Health check endpoint
+# ============================================================================
+# UTILITY ROUTES
+# ============================================================================
+
 @app.route('/health')
 def health_check():
     """Health check endpoint"""
@@ -384,10 +805,14 @@ def health_check():
         # Check categories exist
         category_count = Category.query.count()
         
+        # Check users table
+        user_count = User.query.count()
+        
         return jsonify({
             'status': 'healthy',
             'database': 'connected',
-            'categories': category_count
+            'categories': category_count,
+            'users': user_count
         }), 200
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
@@ -396,7 +821,7 @@ def health_check():
             'error': str(e)
         }), 503
 
-# Database diagnostic endpoint (for debugging)
+
 @app.route('/debug/db-info')
 def db_info():
     """Database diagnostic information (remove in production)"""
@@ -409,11 +834,16 @@ def db_info():
             'categories_count': Category.query.count(),
             'complaints_count': Complaint.query.count(),
             'clusters_count': IssueCluster.query.count(),
+            'users_count': User.query.count(),
             'categories': [c.name for c in Category.query.all()]
         }
         return jsonify(info)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# ============================================================================
+# MAIN
+# ============================================================================
 
 if __name__ == '__main__':
     app.run(debug=config.DEBUG, host='0.0.0.0', port=5000)

@@ -5,3 +5,4 @@ google-generativeai
 numpy
 scikit-learn
 requests
+Werkzeug>=2.0.0

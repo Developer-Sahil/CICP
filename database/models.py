@@ -7,11 +7,106 @@ import logging
 db = SQLAlchemy()
 logger = logging.getLogger(__name__)
 
+# ============================================================================
+# USER MODEL
+# ============================================================================
+
+class User(db.Model):
+    """Model for student users"""
+    __tablename__ = 'users'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    department = db.Column(db.String(100), nullable=True)
+    year = db.Column(db.Integer, nullable=True)  # 1, 2, 3, 4 for year of study
+    hostel = db.Column(db.String(100), nullable=True)
+    room_number = db.Column(db.String(20), nullable=True)
+    phone = db.Column(db.String(20), nullable=True)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    email_verified = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_login = db.Column(db.DateTime, nullable=True)
+    reset_token = db.Column(db.String(100), nullable=True)
+    reset_token_expiry = db.Column(db.DateTime, nullable=True)
+    
+    # Relationship to complaints
+    complaints = db.relationship('Complaint', 
+                                 backref='user', 
+                                 lazy='dynamic',
+                                 foreign_keys='Complaint.user_id')
+    
+    def set_password(self, password):
+        """Set password hash"""
+        from werkzeug.security import generate_password_hash
+        self.password_hash = generate_password_hash(password, method='pbkdf2:sha256')
+    
+    def check_password(self, password):
+        """Check password against hash"""
+        from werkzeug.security import check_password_hash
+        return check_password_hash(self.password_hash, password)
+    
+    def get_complaint_count(self):
+        """Get number of complaints submitted by user"""
+        try:
+            return self.complaints.count()
+        except Exception as e:
+            logger.error(f"Error getting complaint count: {e}")
+            return 0
+    
+    def get_high_severity_count(self):
+        """Get number of high severity complaints by user"""
+        try:
+            return self.complaints.filter_by(severity='high').count()
+        except Exception as e:
+            logger.error(f"Error getting high severity count: {e}")
+            return 0
+    
+    def get_recent_complaints(self, limit=5):
+        """Get user's recent complaints"""
+        try:
+            return self.complaints.order_by(
+                Complaint.timestamp.desc()
+            ).limit(limit).all()
+        except Exception as e:
+            logger.error(f"Error getting recent complaints: {e}")
+            return []
+    
+    def to_dict(self):
+        """Convert user to dictionary"""
+        return {
+            'id': self.id,
+            'student_id': self.student_id,
+            'email': self.email,
+            'name': self.name,
+            'department': self.department,
+            'year': self.year,
+            'hostel': self.hostel,
+            'room_number': self.room_number,
+            'is_admin': self.is_admin,
+            'is_active': self.is_active,
+            'email_verified': self.email_verified,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_login': self.last_login.isoformat() if self.last_login else None
+        }
+    
+    def __repr__(self):
+        return f'<User {self.student_id} - {self.name}>'
+
+
+# ============================================================================
+# COMPLAINT MODEL
+# ============================================================================
+
 class Complaint(db.Model):
     """Model for storing student complaints"""
     __tablename__ = 'complaints'
     
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)  # NEW FIELD
     student_id = db.Column(db.String(100), nullable=True, index=True)  # NULL for anonymous, indexed for queries
     raw_text = db.Column(db.Text, nullable=False)
     rewritten_text = db.Column(db.Text, nullable=False)
@@ -67,6 +162,7 @@ class Complaint(db.Model):
         """
         return {
             'id': self.id,
+            'user_id': self.user_id,
             'student_id': self.student_id if self.student_id else 'Anonymous',
             'raw_text': self.raw_text,
             'rewritten_text': self.rewritten_text,
@@ -79,6 +175,10 @@ class Complaint(db.Model):
     def __repr__(self):
         return f'<Complaint {self.id} - {self.category}>'
 
+
+# ============================================================================
+# ISSUE CLUSTER MODEL
+# ============================================================================
 
 class IssueCluster(db.Model):
     """Model for grouping similar complaints"""
@@ -150,6 +250,10 @@ class IssueCluster(db.Model):
         return f'<IssueCluster {self.id} - {self.cluster_name} ({self.count})>'
 
 
+# ============================================================================
+# CATEGORY MODEL
+# ============================================================================
+
 class Category(db.Model):
     """Model for complaint categories"""
     __tablename__ = 'categories'
@@ -177,7 +281,10 @@ class Category(db.Model):
         return f'<Category {self.name}>'
 
 
-# Database utility functions
+# ============================================================================
+# DATABASE UTILITY FUNCTIONS
+# ============================================================================
+
 def safe_commit():
     """
     Safely commit database changes with rollback on error

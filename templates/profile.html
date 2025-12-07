@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile - Campus Complaint Portal{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Profile Header -->
+    <div class="bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg shadow-lg p-8 mb-6 text-white">
+        <div class="flex items-center space-x-6">
+            <div class="bg-white rounded-full w-24 h-24 flex items-center justify-center text-blue-600 text-4xl font-bold">
+                {{ user.name[0].upper() }}
+            </div>
+            <div class="flex-1">
+                <h1 class="text-3xl font-bold mb-2">{{ user.name }}</h1>
+                <p class="text-blue-100">{{ user.student_id }}</p>
+                <p class="text-blue-100">{{ user.email }}</p>
+            </div>
+            <div class="text-right">
+                <p class="text-sm text-blue-100">Member since</p>
+                <p class="text-lg font-semibold">{{ user.created_at.strftime('%B %Y') }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Column - Stats -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Stats Card -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Your Statistics</h3>
+                
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between p-3 bg-blue-50 rounded">
+                        <span class="text-gray-700">Total Complaints</span>
+                        <span class="text-2xl font-bold text-blue-600">{{ stats.total_complaints }}</span>
+                    </div>
+                    
+                    <div class="flex items-center justify-between p-3 bg-red-50 rounded">
+                        <span class="text-gray-700">High Severity</span>
+                        <span class="text-2xl font-bold text-red-600">{{ stats.high_severity }}</span>
+                    </div>
+                    
+                    <div class="flex items-center justify-between p-3 bg-yellow-50 rounded">
+                        <span class="text-gray-700">Medium Severity</span>
+                        <span class="text-2xl font-bold text-yellow-600">{{ stats.medium_severity }}</span>
+                    </div>
+                    
+                    <div class="flex items-center justify-between p-3 bg-green-50 rounded">
+                        <span class="text-gray-700">Low Severity</span>
+                        <span class="text-2xl font-bold text-green-600">{{ stats.low_severity }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Personal Info Card -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold text-gray-900">Personal Info</h3>
+                    <a href="{{ url_for('edit_profile') }}" class="text-blue-600 hover:text-blue-800 text-sm">
+                        Edit
+                    </a>
+                </div>
+                
+                <div class="space-y-3 text-sm">
+                    <div>
+                        <p class="text-gray-500">Department</p>
+                        <p class="font-medium">{{ user.department or 'Not specified' }}</p>
+                    </div>
+                    
+                    <div>
+                        <p class="text-gray-500">Year</p>
+                        <p class="font-medium">{{ user.year }}{{ ['st', 'nd', 'rd', 'th'][min(user.year-1, 3)] }} Year</p>
+                    </div>
+                    
+                    <div>
+                        <p class="text-gray-500">Hostel</p>
+                        <p class="font-medium">{{ user.hostel or 'Not specified' }}</p>
+                    </div>
+                    
+                    <div>
+                        <p class="text-gray-500">Room</p>
+                        <p class="font-medium">{{ user.room_number or 'Not specified' }}</p>
+                    </div>
+                    
+                    {% if user.phone %}
+                    <div>
+                        <p class="text-gray-500">Phone</p>
+                        <p class="font-medium">{{ user.phone }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column - Complaints -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Recent Complaints -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-bold text-gray-900">My Recent Complaints</h3>
+                    <a href="{{ url_for('my_complaints') }}" class="text-blue-600 hover:text-blue-800 font-medium">
+                        View All →
+                    </a>
+                </div>
+                
+                {% if recent_complaints %}
+                <div class="space-y-4">
+                    {% for complaint in recent_complaints %}
+                    <div class="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-sm font-medium text-gray-900">{{ complaint.category }}</span>
+                                <span class="px-2 py-1 rounded text-xs font-medium
+                                    {% if complaint.severity == 'high' %}bg-red-100 text-red-800
+                                    {% elif complaint.severity == 'medium' %}bg-yellow-100 text-yellow-800
+                                    {% else %}bg-green-100 text-green-800{% endif %}">
+                                    {{ complaint.severity.upper() }}
+                                </span>
+                            </div>
+                            <span class="text-xs text-gray-500">
+                                {{ complaint.timestamp.strftime('%b %d, %Y') }}
+                            </span>
+                        </div>
+                        
+                        <p class="text-sm text-gray-700 mb-3">
+                            {{ complaint.rewritten_text[:150] }}{% if complaint.rewritten_text|length > 150 %}...{% endif %}
+                        </p>
+                        
+                        <details class="text-xs">
+                            <summary class="text-blue-600 hover:text-blue-800 cursor-pointer">
+                                View full complaint
+                            </summary>
+                            <div class="mt-2 p-3 bg-gray-50 rounded">
+                                <p class="text-gray-700">{{ complaint.rewritten_text }}</p>
+                                
+                                <div class="mt-3 pt-3 border-t border-gray-200">
+                                    <p class="text-gray-500 italic">Original submission:</p>
+                                    <p class="text-gray-600 mt-1">{{ complaint.raw_text }}</p>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-12">
+                    <div class="text-6xl mb-4">📝</div>
+                    <p class="text-gray-600 mb-4">You haven't submitted any complaints yet.</p>
+                    <a href="{{ url_for('submit') }}" class="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Submit Your First Complaint
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Category Breakdown -->
+            {% if category_breakdown %}
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Complaints by Category</h3>
+                
+                <div class="space-y-3">
+                    {% for category, count in category_breakdown.items() %}
+                    <div class="flex items-center">
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm font-medium text-gray-700">{{ category }}</span>
+                                <span class="text-sm text-gray-600">{{ count }}</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-blue-600 h-2 rounded-full" style="width: {{ (count / stats.total_complaints * 100) if stats.total_complaints > 0 else 0 }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Quick Actions -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Quick Actions</h3>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <a href="{{ url_for('submit') }}" class="flex items-center justify-center p-4 border-2 border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        New Complaint
+                    </a>
+                    
+                    <a href="{{ url_for('my_complaints') }}" class="flex items-center justify-center p-4 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                        View All
+                    </a>
+                    
+                    <a href="{{ url_for('edit_profile') }}" class="flex items-center justify-center p-4 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                        Edit Profile
+                    </a>
+                    
+                    <a href="{{ url_for('change_password') }}" class="flex items-center justify-center p-4 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                        Change Password
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

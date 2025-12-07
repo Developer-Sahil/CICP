@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}Register - Campus Complaint Portal{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-lg shadow-lg p-8">
+        <div class="text-center mb-8">
+            <h2 class="text-3xl font-bold text-gray-900">Create Account</h2>
+            <p class="text-gray-600 mt-2">Join the campus community</p>
+        </div>
+
+        {% if error %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('register') }}" class="space-y-6" id="registerForm">
+            <!-- Name -->
+            <div>
+                <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
+                    Full Name <span class="text-red-500">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    name="name" 
+                    id="name"
+                    required
+                    placeholder="Enter your full name"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+            </div>
+
+            <!-- Student ID -->
+            <div>
+                <label for="student_id" class="block text-sm font-medium text-gray-700 mb-2">
+                    Student ID <span class="text-red-500">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    name="student_id" 
+                    id="student_id"
+                    required
+                    placeholder="e.g., CS2021001"
+                    pattern="[A-Za-z0-9]{6,15}"
+                    title="Student ID must be 6-15 alphanumeric characters"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p class="text-xs text-gray-500 mt-1">6-15 alphanumeric characters</p>
+            </div>
+
+            <!-- Email -->
+            <div>
+                <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
+                    Email Address <span class="text-red-500">*</span>
+                </label>
+                <input 
+                    type="email" 
+                    name="email" 
+                    id="email"
+                    required
+                    placeholder="your.email@university.edu"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+            </div>
+
+            <!-- Department & Year -->
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="department" class="block text-sm font-medium text-gray-700 mb-2">
+                        Department
+                    </label>
+                    <select 
+                        name="department" 
+                        id="department"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                        <option value="">Select department</option>
+                        <option value="Computer Science">Computer Science</option>
+                        <option value="Electrical Engineering">Electrical Engineering</option>
+                        <option value="Mechanical Engineering">Mechanical Engineering</option>
+                        <option value="Civil Engineering">Civil Engineering</option>
+                        <option value="Business Administration">Business Administration</option>
+                        <option value="Mathematics">Mathematics</option>
+                        <option value="Physics">Physics</option>
+                        <option value="Chemistry">Chemistry</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="year" class="block text-sm font-medium text-gray-700 mb-2">
+                        Year of Study
+                    </label>
+                    <select 
+                        name="year" 
+                        id="year"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                        <option value="">Select year</option>
+                        <option value="1">1st Year</option>
+                        <option value="2">2nd Year</option>
+                        <option value="3">3rd Year</option>
+                        <option value="4">4th Year</option>
+                        <option value="5">5th Year</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Hostel & Room -->
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="hostel" class="block text-sm font-medium text-gray-700 mb-2">
+                        Hostel
+                    </label>
+                    <input 
+                        type="text" 
+                        name="hostel" 
+                        id="hostel"
+                        placeholder="e.g., Block A"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                </div>
+
+                <div>
+                    <label for="room_number" class="block text-sm font-medium text-gray-700 mb-2">
+                        Room Number
+                    </label>
+                    <input 
+                        type="text" 
+                        name="room_number" 
+                        id="room_number"
+                        placeholder="e.g., 301"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                </div>
+            </div>
+
+            <!-- Phone -->
+            <div>
+                <label for="phone" class="block text-sm font-medium text-gray-700 mb-2">
+                    Phone Number
+                </label>
+                <input 
+                    type="tel" 
+                    name="phone" 
+                    id="phone"
+                    placeholder="+1234567890"
+                    pattern="[+]?[0-9]{10,15}"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+            </div>
+
+            <!-- Password -->
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+                    Password <span class="text-red-500">*</span>
+                </label>
+                <input 
+                    type="password" 
+                    name="password" 
+                    id="password"
+                    required
+                    placeholder="Create a strong password"
+                    minlength="8"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <div class="mt-2 text-xs text-gray-600">
+                    <p>Password must contain:</p>
+                    <ul class="list-disc list-inside ml-2 space-y-1">
+                        <li id="length" class="text-red-500">At least 8 characters</li>
+                        <li id="uppercase" class="text-red-500">One uppercase letter</li>
+                        <li id="lowercase" class="text-red-500">One lowercase letter</li>
+                        <li id="number" class="text-red-500">One number</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Confirm Password -->
+            <div>
+                <label for="confirm_password" class="block text-sm font-medium text-gray-700 mb-2">
+                    Confirm Password <span class="text-red-500">*</span>
+                </label>
+                <input 
+                    type="password" 
+                    name="confirm_password" 
+                    id="confirm_password"
+                    required
+                    placeholder="Re-enter your password"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p id="passwordMatch" class="mt-1 text-xs"></p>
+            </div>
+
+            <!-- Terms & Conditions -->
+            <div class="flex items-start">
+                <input 
+                    type="checkbox" 
+                    name="terms" 
+                    id="terms"
+                    required
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-1"
+                />
+                <label for="terms" class="ml-2 text-sm text-gray-700">
+                    I agree to the <a href="#" class="text-blue-600 hover:text-blue-800">Terms and Conditions</a> 
+                    and <a href="#" class="text-blue-600 hover:text-blue-800">Privacy Policy</a>
+                </label>
+            </div>
+
+            <!-- Submit Button -->
+            <button 
+                type="submit"
+                class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium text-lg"
+            >
+                Create Account
+            </button>
+        </form>
+
+        <!-- Login Link -->
+        <div class="mt-6 text-center">
+            <p class="text-gray-600">
+                Already have an account? 
+                <a href="{{ url_for('login') }}" class="text-blue-600 hover:text-blue-800 font-medium">
+                    Log in here
+                </a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+// Password validation
+const passwordInput = document.getElementById('password');
+const confirmInput = document.getElementById('confirm_password');
+
+passwordInput.addEventListener('input', function() {
+    const password = this.value;
+    
+    // Check length
+    const lengthReq = document.getElementById('length');
+    if (password.length >= 8) {
+        lengthReq.classList.remove('text-red-500');
+        lengthReq.classList.add('text-green-500');
+    } else {
+        lengthReq.classList.remove('text-green-500');
+        lengthReq.classList.add('text-red-500');
+    }
+    
+    // Check uppercase
+    const uppercaseReq = document.getElementById('uppercase');
+    if (/[A-Z]/.test(password)) {
+        uppercaseReq.classList.remove('text-red-500');
+        uppercaseReq.classList.add('text-green-500');
+    } else {
+        uppercaseReq.classList.remove('text-green-500');
+        uppercaseReq.classList.add('text-red-500');
+    }
+    
+    // Check lowercase
+    const lowercaseReq = document.getElementById('lowercase');
+    if (/[a-z]/.test(password)) {
+        lowercaseReq.classList.remove('text-red-500');
+        lowercaseReq.classList.add('text-green-500');
+    } else {
+        lowercaseReq.classList.remove('text-green-500');
+        lowercaseReq.classList.add('text-red-500');
+    }
+    
+    // Check number
+    const numberReq = document.getElementById('number');
+    if (/[0-9]/.test(password)) {
+        numberReq.classList.remove('text-red-500');
+        numberReq.classList.add('text-green-500');
+    } else {
+        numberReq.classList.remove('text-green-500');
+        numberReq.classList.add('text-red-500');
+    }
+    
+    checkPasswordMatch();
+});
+
+confirmInput.addEventListener('input', checkPasswordMatch);
+
+function checkPasswordMatch() {
+    const password = passwordInput.value;
+    const confirm = confirmInput.value;
+    const matchText = document.getElementById('passwordMatch');
+    
+    if (confirm.length === 0) {
+        matchText.textContent = '';
+        return;
+    }
+    
+    if (password === confirm) {
+        matchText.textContent = '✓ Passwords match';
+        matchText.className = 'mt-1 text-xs text-green-600';
+    } else {
+        matchText.textContent = '✗ Passwords do not match';
+        matchText.className = 'mt-1 text-xs text-red-600';
+    }
+}
+
+// Form validation
+document.getElementById('registerForm').addEventListener('submit', function(e) {
+    const password = passwordInput.value;
+    const confirm = confirmInput.value;
+    
+    if (password !== confirm) {
+        e.preventDefault();
+        alert('Passwords do not match!');
+        return false;
+    }
+});
+</script>
+{% endblock %}

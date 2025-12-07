@@ -359,6 +359,7 @@ DATABASE_URI=postgresql://username:password@localhost/complaints_db
 - [ ] **Student Login System** - Authentication and personalized dashboards
 - [ ] **Upvoting Mechanism** - Allow students to upvote existing complaints
 - [ ] **Email Notifications** - Notify admins of high-severity issues
+- [ ] **Email Restrictions** - Restricting only organization emails to login
 - [ ] **Attachment Support** - Upload images/screenshots with complaints
 - [ ] **Progress Tracking** - Track issue status (Open → In Progress → Resolved)
 - [ ] **PDF Report Generation** - Weekly/monthly automated reports
