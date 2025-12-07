@@ -17,18 +17,18 @@ def create_admin():
         admin = User(
             name='Admin User',
             student_id='ADMIN001',
-            email='sahilsharmamrp@gmail.com',
+            email='admin@campus.edu',
             is_admin=True,
             email_verified=True
         )
-        admin.set_password('Sahil@123')  # Change this!
+        admin.set_password('Admin@123')  # Change this!
         
         db.session.add(admin)
         db.session.commit()
         
         print("✓ Admin user created!")
-        print("Email: sahilsharmamrp@gmail.com")
-        print("Password: Sahil@123")
+        print("Email: admin@campus.edu")
+        print("Password: Admin@123")
         print("\n⚠️  IMPORTANT: Change the password after first login!")
 
 if __name__ == '__main__':

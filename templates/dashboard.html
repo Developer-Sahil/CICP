@@ -182,7 +182,7 @@
 const categoryCtx = document.getElementById('categoryChart').getContext('2d');
 const categoryData = {{ stats.category_stats | tojson }};
 const categoryChart = new Chart(categoryCtx, {
-    type: 'doughnutt',
+    type: 'doughnut',
     data: {
         labels: Object.keys(categoryData),
         datasets: [{
