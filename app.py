@@ -38,11 +38,9 @@ def init_database():
     """Initialize database and create categories"""
     try:
         with app.app_context():
-            # Create all tables
             db.create_all()
             logger.info("Database tables created successfully")
             
-            # Check if categories exist
             category_count = Category.query.count()
             
             if category_count == 0:
@@ -66,14 +64,6 @@ def init_database():
             else:
                 logger.info(f"Categories already exist: {category_count} found")
                 
-    except OperationalError as e:
-        logger.error(f"Database operational error during initialization: {str(e)}")
-        logger.error("This might indicate database file corruption or permission issues")
-        raise
-    except SQLAlchemyError as e:
-        logger.error(f"Database error during initialization: {str(e)}")
-        db.session.rollback()
-        raise
     except Exception as e:
         logger.error(f"Unexpected error during initialization: {str(e)}")
         raise
@@ -85,23 +75,22 @@ except Exception as e:
     logger.critical(f"Failed to initialize database: {str(e)}")
     logger.critical("Application may not function correctly")
 
+
 # Context processor to make current_user available in all templates
 @app.context_processor
 def inject_user():
     """Make current user available in all templates"""
     return dict(current_user=get_current_user())
 
-# Error handlers
+# ================== ERROR HANDLERS ==================
 @app.errorhandler(404)
 def not_found_error(error):
-    """Handle 404 errors"""
     return render_template('error.html', 
                          error_code=404, 
                          error_message="Page not found"), 404
 
 @app.errorhandler(500)
 def internal_error(error):
-    """Handle 500 errors"""
     db.session.rollback()
     logger.error(f"Internal error: {str(error)}")
     return render_template('error.html', 
@@ -110,7 +99,6 @@ def internal_error(error):
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    """Handle uncaught exceptions"""
     db.session.rollback()
     logger.error(f"Unhandled exception: {str(e)}", exc_info=True)
     return render_template('error.html', 
@@ -120,10 +108,8 @@ def handle_exception(e):
 # ============================================================================
 # PUBLIC ROUTES
 # ============================================================================
-
 @app.route('/')
 def index():
-    """Landing page"""
     try:
         return render_template('index.html')
     except Exception as e:
@@ -513,40 +499,15 @@ def submit():
     """Complaint submission page"""
     if request.method == 'GET':
         try:
-            # Try to fetch categories with error handling
-            categories = []
-            error_message = None
-            
-            try:
-                categories = Category.query.order_by(Category.name).all()
-                logger.info(f"Successfully loaded {len(categories)} categories")
-                
-                # If no categories found, try to reinitialize
-                if not categories:
-                    logger.warning("No categories found, attempting to reinitialize")
-                    init_database()
-                    categories = Category.query.all()
-                    
-            except OperationalError as e:
-                logger.error(f"Database operational error loading categories: {str(e)}")
-                error_message = "Database connection error. Please contact administrator."
-            except SQLAlchemyError as e:
-                logger.error(f"Database error loading categories: {str(e)}")
-                error_message = "Error loading categories from database."
-            except Exception as e:
-                logger.error(f"Unexpected error loading categories: {str(e)}")
-                error_message = "Unexpected error loading categories."
-            
-            return render_template('submit.html', 
-                                 categories=categories,
-                                 error=error_message)
-                                 
+            categories = Category.query.order_by(Category.name).all()
+            if not categories:
+                init_database()
+                categories = Category.query.all()
+            return render_template('submit.html', categories=categories, error=None)
         except Exception as e:
             logger.error(f"Critical error in submit GET: {str(e)}")
-            return render_template('submit.html', 
-                                 categories=[],
-                                 error="Critical error loading form. Please try again later.")
-    
+            return render_template('submit.html', categories=[], error="Critical error loading form.")
+
     if request.method == 'POST':
         try:
             # Get current user if logged in
@@ -556,17 +517,13 @@ def submit():
             raw_text = request.form.get('raw_text', '').strip()
             if not raw_text:
                 categories = Category.query.all()
-                return render_template('submit.html', 
-                                     categories=categories,
-                                     error="Please enter a complaint description")
-            
-            # Validate text length
+                return render_template('submit.html', categories=categories, error="Please enter a complaint")
+
             if len(raw_text) > config.MAX_COMPLAINT_LENGTH:
                 categories = Category.query.all()
-                return render_template('submit.html', 
-                                     categories=categories,
-                                     error=f"Complaint must be less than {config.MAX_COMPLAINT_LENGTH} characters")
-            
+                return render_template('submit.html', categories=categories,
+                                       error=f"Complaint must be under {config.MAX_COMPLAINT_LENGTH} characters")
+
             category_name = request.form.get('category', '').strip()
             anonymous = request.form.get('anonymous') == 'on'
             
@@ -580,46 +537,28 @@ def submit():
             
             # AI Processing Pipeline with error handling
             try:
-                # 1. Rewrite complaint
                 rewritten_text = rewrite_complaint(raw_text)
-                logger.info("Complaint rewritten successfully")
-            except Exception as e:
-                logger.error(f"Error rewriting complaint: {str(e)}")
-                rewritten_text = raw_text  # Fallback to original
-            
+            except:
+                rewritten_text = raw_text
+
             try:
-                # 2. Classify category (if not provided)
                 if not category_name:
                     category_name = classify_category(rewritten_text)
-                    logger.info(f"Category classified as: {category_name}")
-                
-                # Validate category exists
-                category_exists = Category.query.filter_by(name=category_name).first()
-                if not category_exists:
-                    logger.warning(f"Category '{category_name}' not found, using 'Other'")
+                if not Category.query.filter_by(name=category_name).first():
                     category_name = 'Other'
-                    
-            except Exception as e:
-                logger.error(f"Error classifying category: {str(e)}")
+            except:
                 category_name = 'Other'
-            
+
             try:
-                # 3. Detect severity
                 severity = detect_severity(rewritten_text)
-                logger.info(f"Severity detected as: {severity}")
-            except Exception as e:
-                logger.error(f"Error detecting severity: {str(e)}")
-                severity = 'medium'  # Default fallback
-            
+            except:
+                severity = 'medium'
+
             try:
-                # 4. Generate embedding
                 embedding = generate_embedding(rewritten_text)
-                logger.info("Embedding generated successfully")
-            except Exception as e:
-                logger.error(f"Error generating embedding: {str(e)}")
-                embedding = None  # Can proceed without embedding
-            
-            # 5. Create complaint
+            except:
+                embedding = None
+
             complaint = Complaint(
                 user_id=current_user['id'] if current_user else None,
                 student_id=student_id if student_id else None,
@@ -629,64 +568,37 @@ def submit():
                 severity=severity,
                 timestamp=datetime.utcnow()
             )
-            
-            # Set embedding if generated
+
             if embedding is not None:
                 complaint.set_embedding(embedding)
-            
+
             db.session.add(complaint)
-            db.session.flush()  # Get the complaint ID before clustering
-            logger.info(f"Complaint created with ID: {complaint.id}")
-            
+            db.session.flush()
+
             try:
-                # 6. Assign to cluster
                 cluster_id = assign_cluster(complaint)
                 complaint.cluster_id = cluster_id
-                logger.info(f"Complaint assigned to cluster: {cluster_id}")
             except Exception as e:
-                logger.error(f"Error assigning cluster: {str(e)}")
-                # Continue without clustering
-            
+                logger.error(f"Cluster assignment error: {str(e)}")
+
             db.session.commit()
-            logger.info("Complaint saved successfully")
-            
+
             try:
-                # 7. Update cluster statistics (non-blocking)
                 update_clusters()
             except Exception as e:
-                logger.error(f"Error updating clusters: {str(e)}")
-                # Non-critical, continue
-            
+                logger.error(f"Cluster update error: {str(e)}")
+
             return redirect(url_for('success'))
-            
-        except IntegrityError as e:
-            db.session.rollback()
-            logger.error(f"Database integrity error: {str(e)}")
-            categories = Category.query.all()
-            return render_template('submit.html', 
-                                 categories=categories,
-                                 error="Database error: Duplicate entry or constraint violation")
-        
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            logger.error(f"Database error submitting complaint: {str(e)}")
-            categories = Category.query.all()
-            return render_template('submit.html', 
-                                 categories=categories,
-                                 error="Database error. Please try again.")
-        
+
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Unexpected error submitting complaint: {str(e)}")
+            logger.error(f"Unexpected submission error: {str(e)}")
             categories = Category.query.all()
-            return render_template('submit.html', 
-                                 categories=categories,
-                                 error="An unexpected error occurred. Please try again.")
+            return render_template('submit.html', categories=categories, error="Unexpected error")
 
 
 @app.route('/success')
 def success():
-    """Success page after complaint submission"""
     try:
         return render_template('success.html')
     except Exception as e:
@@ -704,92 +616,67 @@ def dashboard():
         stats = get_dashboard_stats()
         clusters = IssueCluster.query.order_by(IssueCluster.count.desc()).limit(20).all()
         recent = get_recent_complaints(limit=10)
-        
-        return render_template(
-            'dashboard.html',
-            stats=stats,
-            clusters=clusters,
-            recent=recent
-        )
-    except SQLAlchemyError as e:
-        logger.error(f"Database error loading dashboard: {str(e)}")
-        return render_template('dashboard.html', 
-                             stats={}, 
-                             clusters=[], 
-                             recent=[],
-                             error="Error loading dashboard data")
-    except Exception as e:
-        logger.error(f"Error loading dashboard: {str(e)}")
-        return render_template('dashboard.html', 
-                             stats={}, 
-                             clusters=[], 
-                             recent=[],
-                             error="Error loading dashboard")
+        return render_template('dashboard.html', stats=stats, clusters=clusters, recent=recent)
+    except:
+        return render_template('dashboard.html', stats={}, clusters=[], recent=[], error="Dashboard error")
 
 
 @app.route('/cluster/<int:cluster_id>')
 def cluster_detail(cluster_id):
-    """Cluster detail page"""
     try:
         cluster = IssueCluster.query.get(cluster_id)
         if not cluster:
-            return render_template('error.html', 
-                                 error_code=404, 
-                                 error_message="Cluster not found"), 404
-        
-        complaints = Complaint.query.filter_by(cluster_id=cluster_id)\
-                                    .order_by(Complaint.timestamp.desc())\
-                                    .all()
-        
-        return render_template(
-            'cluster_detail.html',
-            cluster=cluster,
-            complaints=complaints
-        )
-    except SQLAlchemyError as e:
-        logger.error(f"Database error loading cluster: {str(e)}")
-        return render_template('error.html', 
-                             error_code=500, 
-                             error_message="Error loading cluster details"), 500
+            return render_template('error.html', error_code=404, error_message="Cluster not found"), 404
+        complaints = Complaint.query.filter_by(cluster_id=cluster_id).order_by(Complaint.timestamp.desc()).all()
+        return render_template('cluster_detail.html', cluster=cluster, complaints=complaints)
+    except:
+        return render_template('error.html', error_code=500, error_message="Cluster load error"), 500
 
 # ============================================================================
 # API ROUTES
 # ============================================================================
 
+# ================== 🔵 UPVOTE API ROUTE (ADDED HERE) ==================
+@app.route('/complaint/<int:id>/upvote', methods=['POST'])
+def upvote_complaint(id):
+    """API endpoint to upvote a complaint"""
+    try:
+        complaint = Complaint.query.get(id)
+        if not complaint:
+            return jsonify({'success': False, 'error': 'Complaint not found'}), 404
+
+        complaint.upvotes += 1
+        db.session.commit()
+
+        return jsonify({'success': True, 'upvotes': complaint.upvotes}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Upvote error: {str(e)}")
+        return jsonify({'success': False, 'error': 'Failed to upvote'}), 500
+
+
+# ================== EXISTING APIs ==================
+
 @app.route('/api/rewrite', methods=['POST'])
 def api_rewrite():
-    """API endpoint for AI rewriting"""
     try:
         data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No JSON data provided'}), 400
-        
         raw_text = data.get('text', '').strip()
-        
         if not raw_text:
             return jsonify({'error': 'No text provided'}), 400
-        
-        # Validate length
-        if len(raw_text) > config.MAX_COMPLAINT_LENGTH:
-            return jsonify({'error': f'Text too long. Maximum {config.MAX_COMPLAINT_LENGTH} characters'}), 400
-        
         rewritten = rewrite_complaint(raw_text)
         return jsonify({'rewritten_text': rewritten})
-        
-    except Exception as e:
-        logger.error(f"Error in rewrite API: {str(e)}")
-        return jsonify({'error': 'Failed to rewrite text. Please try again.'}), 500
+    except:
+        return jsonify({'error': 'Rewrite failed'}), 500
 
 
 @app.route('/api/stats')
 def api_stats():
-    """API endpoint for dashboard statistics"""
     try:
         stats = get_dashboard_stats()
         return jsonify(stats)
-    except Exception as e:
-        logger.error(f"Error in stats API: {str(e)}")
-        return jsonify({'error': 'Failed to fetch statistics'}), 500
+    except:
+        return jsonify({'error': 'Stats fetch failed'}), 500
 
 # ============================================================================
 # UTILITY ROUTES
@@ -797,14 +684,9 @@ def api_stats():
 
 @app.route('/health')
 def health_check():
-    """Health check endpoint"""
     try:
-        # Check database connection
         db.session.execute('SELECT 1')
-        
-        # Check categories exist
         category_count = Category.query.count()
-        
         # Check users table
         user_count = User.query.count()
         
@@ -821,13 +703,11 @@ def health_check():
             'error': str(e)
         }), 503
 
-
+# Debug DB info
 @app.route('/debug/db-info')
 def db_info():
-    """Database diagnostic information (remove in production)"""
     if not config.DEBUG:
         return jsonify({'error': 'Only available in DEBUG mode'}), 403
-    
     try:
         info = {
             'database_uri': config.DATABASE_URI,

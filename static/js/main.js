@@ -22,6 +22,41 @@ async function apiCall(url, method = 'GET', data = null) {
     }
 }
 
+// UPVOTE FUNCTION
+async function upvote(complaintId) {
+    try {
+        // Disable the button immediately
+        const btn = event.target.closest("button");
+        btn.disabled = true;
+        btn.textContent = "Upvoting...";
+
+        const response = await fetch(`/complaint/${complaintId}/upvote`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showNotification("Upvoted!", "success");
+
+            // Update button look after upvote
+            btn.textContent = `👍 Upvoted (${data.upvotes})`;
+            btn.classList.add("text-green-700");
+        } else {
+            showNotification("Error: " + data.error, "error");
+            btn.disabled = false;
+            btn.textContent = "Upvote";
+        }
+    } catch (error) {
+        console.error("Upvote error:", error);
+        showNotification("Failed to upvote. Try again.", "error");
+        btn.disabled = false;
+        btn.textContent = "Upvote";
+    }
+}
+
+
+
 // Show loading indicator
 function showLoading(element) {
     element.disabled = true;
