@@ -13,7 +13,7 @@ A centralized, AI-powered web platform for students to report campus issues and 
   - ✅ **Verification scoring system** for accuracy
   - ✅ **Automatic override** for safety
 - **Intelligent Clustering**: Groups similar complaints using embeddings and similarity detection
-- - **Upvoting Mechanism (NEW)** – Students can upvote complaints, UI button added in Dashboard & Cluster pages, prevents spam, updates counts live.
+- **Upvoting Mechanism (NEW)** – Students can upvote complaints, UI button added in Dashboard & Cluster pages, prevents spam, updates counts live.
 - **Admin Dashboard**: Real-time analytics, charts, and insights
 - **Anonymous Reporting**: Option to submit complaints anonymously
 - **Responsive Design**: Works on desktop, tablet, and mobile devices
