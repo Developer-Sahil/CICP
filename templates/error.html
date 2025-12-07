@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Error {{ error_code }} - Campus Complaint Portal{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto text-center py-12">
+    <!-- Error Icon -->
+    <div class="mb-8">
+        <div class="mx-auto w-24 h-24 bg-red-100 rounded-full flex items-center justify-center">
+            <svg class="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Error Message -->
+    <h2 class="text-4xl font-bold text-gray-900 mb-4">
+        {% if error_code == 404 %}
+            Page Not Found
+        {% elif error_code == 500 %}
+            Server Error
+        {% else %}
+            Error {{ error_code }}
+        {% endif %}
+    </h2>
+    
+    <p class="text-xl text-gray-600 mb-8">
+        {{ error_message if error_message else "An error occurred while processing your request." }}
+    </p>
+
+    <!-- Error Details -->
+    <div class="bg-white rounded-lg shadow-lg p-8 mb-8 text-left">
+        <h3 class="text-2xl font-bold text-gray-900 mb-4">What happened?</h3>
+        
+        {% if error_code == 404 %}
+        <p class="text-gray-600 mb-4">
+            The page you're looking for doesn't exist or has been moved.
+        </p>
+        <ul class="space-y-2 text-gray-600 mb-4">
+            <li>• Check the URL for typos</li>
+            <li>• The page may have been removed or renamed</li>
+            <li>• Try navigating from the home page</li>
+        </ul>
+        {% elif error_code == 500 %}
+        <p class="text-gray-600 mb-4">
+            Something went wrong on our end. We're working to fix it.
+        </p>
+        <ul class="space-y-2 text-gray-600 mb-4">
+            <li>• Try refreshing the page</li>
+            <li>• Wait a few minutes and try again</li>
+            <li>• If the problem persists, contact support</li>
+        </ul>
+        {% else %}
+        <p class="text-gray-600 mb-4">
+            An unexpected error occurred while processing your request.
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <a href="{{ url_for('index') }}" class="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors">
+            Go to Home
+        </a>
+        <button onclick="history.back()" class="px-8 py-3 bg-white text-blue-600 border-2 border-blue-600 rounded-lg hover:bg-blue-50 font-medium transition-colors">
+            Go Back
+        </button>
+        <a href="{{ url_for('submit') }}" class="px-8 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-colors">
+            Submit Complaint
+        </a>
+    </div>
+
+    <!-- Help Section -->
+    <div class="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6 text-left">
+        <h4 class="font-bold text-blue-900 mb-3">Need Help?</h4>
+        <p class="text-blue-800">
+            If you continue to experience issues, please contact our support team with:
+        </p>
+        <ul class="space-y-2 text-blue-800 mt-2">
+            <li>✓ Error code: <strong>{{ error_code }}</strong></li>
+            <li>✓ Time: <strong id="errorTime"></strong></li>
+            <li>✓ What you were trying to do</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+// Display current time
+document.getElementById('errorTime').textContent = new Date().toLocaleString();
+</script>
+{% endblock %}
