@@ -107,28 +107,30 @@ class Complaint(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)  # NEW FIELD
-    student_id = db.Column(db.String(100), nullable=True, index=True)  # NULL for anonymous, indexed for queries
+    student_id = db.Column(db.String(100), nullable=True, index=True)  # NULL for anonymous, indexed for querie
     raw_text = db.Column(db.Text, nullable=False)
     rewritten_text = db.Column(db.Text, nullable=False)
-    category = db.Column(db.String(100), nullable=False, index=True)  # Indexed for queries
-    severity = db.Column(db.String(20), nullable=False, default='medium', index=True)  # low, medium, high
+    category = db.Column(db.String(100), nullable=False, index=True)
+    severity = db.Column(db.String(20), nullable=False, default='medium', index=True)
     embedding = db.Column(db.LargeBinary, nullable=True)  # Pickled numpy array
-    cluster_id = db.Column(db.Integer, db.ForeignKey('issue_clusters.id', ondelete='SET NULL'), nullable=True, index=True)
+    cluster_id = db.Column(
+        db.Integer, 
+        db.ForeignKey('issue_clusters.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True
+    )
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     
+    # ⭐ NEW FIELD — REQUIRED FOR UPVOTING
+    upvotes = db.Column(db.Integer, default=0, nullable=False)
+
     # Relationship
     cluster = db.relationship('IssueCluster', back_populates='complaints')
     
     def set_embedding(self, embedding_array):
-        """
-        Store numpy array as binary
-        
-        Args:
-            embedding_array: numpy array or list
-        """
+        """Store numpy array as binary"""
         try:
             if embedding_array is not None:
-                # Convert to numpy array if it's a list
                 if isinstance(embedding_array, list):
                     embedding_array = np.array(embedding_array)
                 self.embedding = pickle.dumps(embedding_array)
@@ -139,12 +141,7 @@ class Complaint(db.Model):
             self.embedding = None
     
     def get_embedding(self):
-        """
-        Retrieve numpy array from binary
-        
-        Returns:
-            numpy.ndarray or None
-        """
+        """Retrieve numpy array from binary"""
         try:
             if self.embedding:
                 return pickle.loads(self.embedding)
@@ -154,12 +151,7 @@ class Complaint(db.Model):
             return None
     
     def to_dict(self):
-        """
-        Convert complaint to dictionary
-        
-        Returns:
-            dict: Complaint data
-        """
+        """Convert complaint to dictionary"""
         return {
             'id': self.id,
             'user_id': self.user_id,
@@ -169,7 +161,8 @@ class Complaint(db.Model):
             'category': self.category,
             'severity': self.severity,
             'cluster_id': self.cluster_id,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'upvotes': self.upvotes
         }
     
     def __repr__(self):
@@ -192,18 +185,15 @@ class IssueCluster(db.Model):
     last_updated = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     
     # Relationship
-    complaints = db.relationship('Complaint', 
-                                back_populates='cluster', 
-                                lazy='dynamic',
-                                cascade='all, delete-orphan')
+    complaints = db.relationship(
+        'Complaint',
+        back_populates='cluster',
+        lazy='dynamic',
+        cascade='all, delete-orphan'
+    )
     
     def update_count(self):
-        """
-        Update complaint count for this cluster
-        
-        Returns:
-            int: Updated count
-        """
+        """Update complaint count for this cluster"""
         try:
             self.count = self.complaints.count()
             self.last_updated = datetime.utcnow()
@@ -213,15 +203,7 @@ class IssueCluster(db.Model):
             return 0
     
     def get_recent_complaints(self, limit=5):
-        """
-        Get recent complaints in this cluster
-        
-        Args:
-            limit (int): Number of complaints to retrieve
-            
-        Returns:
-            list: List of Complaint objects
-        """
+        """Get recent complaints in this cluster"""
         try:
             return self.complaints.order_by(
                 Complaint.timestamp.desc()
@@ -231,12 +213,7 @@ class IssueCluster(db.Model):
             return []
     
     def to_dict(self):
-        """
-        Convert cluster to dictionary
-        
-        Returns:
-            dict: Cluster data
-        """
+        """Convert cluster to dictionary"""
         return {
             'id': self.id,
             'cluster_name': self.cluster_name,
@@ -264,12 +241,7 @@ class Category(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     
     def to_dict(self):
-        """
-        Convert category to dictionary
-        
-        Returns:
-            dict: Category data
-        """
+        """Convert category to dictionary"""
         return {
             'id': self.id,
             'name': self.name,
@@ -284,56 +256,34 @@ class Category(db.Model):
 # ============================================================================
 # DATABASE UTILITY FUNCTIONS
 # ============================================================================
-
 def safe_commit():
-    """
-    Safely commit database changes with rollback on error
-    
-    Returns:
-        tuple: (success: bool, error: str or None)
-    """
+    """Safely commit changes"""
     try:
         db.session.commit()
         return True, None
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Database commit error: {str(e)}")
+        logger.error(f"Commit error: {str(e)}")
         return False, str(e)
 
 
 def safe_add(obj):
-    """
-    Safely add object to database session
-    
-    Args:
-        obj: Database model object
-        
-    Returns:
-        tuple: (success: bool, error: str or None)
-    """
+    """Safely add object"""
     try:
         db.session.add(obj)
         return True, None
     except Exception as e:
-        logger.error(f"Database add error: {str(e)}")
+        logger.error(f"Add error: {str(e)}")
         return False, str(e)
 
 
 def safe_delete(obj):
-    """
-    Safely delete object from database
-    
-    Args:
-        obj: Database model object
-        
-    Returns:
-        tuple: (success: bool, error: str or None)
-    """
+    """Safely delete object"""
     try:
         db.session.delete(obj)
         db.session.commit()
         return True, None
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Database delete error: {str(e)}")
+        logger.error(f"Delete error: {str(e)}")
         return False, str(e)
