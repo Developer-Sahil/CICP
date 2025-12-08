@@ -24,6 +24,13 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = config.SECRET_KEY
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
+app.jinja_env.globals.update({
+    'min': min,
+    'max': max,
+    'abs': abs,
+    'len': len
+})
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -337,20 +344,45 @@ def forgot_password():
 @app.route('/profile')
 @login_required
 def profile():
-    """User profile page"""
+    """User profile page - FIXED"""
     try:
-        current_user = get_current_user()
-        user = User.query.get(current_user['id'])
+        current_user_data = get_current_user()
+        
+        # Add detailed logging
+        logger.info(f"Profile access attempt - User ID: {current_user_data.get('id')}")
+        
+        # Fetch user from database
+        user = User.query.get(current_user_data['id'])
         
         if not user:
-            flash('User not found.', 'danger')
+            logger.error(f"User not found in database: {current_user_data['id']}")
+            flash('User account not found. Please login again.', 'danger')
             return redirect(url_for('logout'))
         
-        # Get user statistics
-        total_complaints = user.get_complaint_count()
-        high_severity = user.complaints.filter_by(severity='high').count()
-        medium_severity = user.complaints.filter_by(severity='medium').count()
-        low_severity = user.complaints.filter_by(severity='low').count()
+        # Get user statistics with error handling
+        try:
+            total_complaints = user.complaints.count()
+        except Exception as e:
+            logger.error(f"Error counting total complaints: {e}")
+            total_complaints = 0
+        
+        try:
+            high_severity = user.complaints.filter_by(severity='high').count()
+        except Exception as e:
+            logger.error(f"Error counting high severity: {e}")
+            high_severity = 0
+        
+        try:
+            medium_severity = user.complaints.filter_by(severity='medium').count()
+        except Exception as e:
+            logger.error(f"Error counting medium severity: {e}")
+            medium_severity = 0
+        
+        try:
+            low_severity = user.complaints.filter_by(severity='low').count()
+        except Exception as e:
+            logger.error(f"Error counting low severity: {e}")
+            low_severity = 0
         
         stats = {
             'total_complaints': total_complaints,
@@ -359,20 +391,32 @@ def profile():
             'low_severity': low_severity
         }
         
-        # Get recent complaints
-        recent_complaints = user.get_recent_complaints(limit=5)
+        # Get recent complaints with error handling
+        try:
+            recent_complaints = user.complaints.order_by(
+                Complaint.timestamp.desc()
+            ).limit(5).all()
+        except Exception as e:
+            logger.error(f"Error fetching recent complaints: {e}")
+            recent_complaints = []
         
-        # Category breakdown
-        category_breakdown = dict(
-            db.session.query(
-                Complaint.category,
-                func.count(Complaint.id)
-            ).filter(
-                Complaint.user_id == user.id
-            ).group_by(
-                Complaint.category
-            ).all()
-        )
+        # Category breakdown with error handling
+        try:
+            category_breakdown = dict(
+                db.session.query(
+                    Complaint.category,
+                    func.count(Complaint.id)
+                ).filter(
+                    Complaint.user_id == user.id
+                ).group_by(
+                    Complaint.category
+                ).all()
+            )
+        except Exception as e:
+            logger.error(f"Error getting category breakdown: {e}")
+            category_breakdown = {}
+        
+        logger.info(f"Profile loaded successfully for user: {user.student_id}")
         
         return render_template('profile.html',
                              user=user,
@@ -381,33 +425,60 @@ def profile():
                              category_breakdown=category_breakdown)
         
     except Exception as e:
-        logger.error(f"Error loading profile: {e}")
-        flash('Error loading profile.', 'danger')
+        logger.error(f"Critical error loading profile: {e}", exc_info=True)
+        flash('Error loading profile. Please try again.', 'danger')
         return redirect(url_for('index'))
 
 
 @app.route('/my-complaints')
 @login_required
 def my_complaints():
-    """View all user complaints"""
+    """View all user complaints - FIXED"""
     try:
-        current_user = get_current_user()
-        user = User.query.get(current_user['id'])
+        current_user_data = get_current_user()
+        user = User.query.get(current_user_data['id'])
         
-        # Pagination
+        if not user:
+            flash('User not found.', 'danger')
+            return redirect(url_for('logout'))
+        
+        # Pagination with error handling
         page = request.args.get('page', 1, type=int)
         per_page = 10
         
-        complaints = user.complaints.order_by(
-            Complaint.timestamp.desc()
-        ).paginate(page=page, per_page=per_page, error_out=False)
+        try:
+            complaints = user.complaints.order_by(
+                Complaint.timestamp.desc()
+            ).paginate(page=page, per_page=per_page, error_out=False)
+        except Exception as e:
+            logger.error(f"Error paginating complaints: {e}")
+            # Fallback without pagination
+            complaints_list = user.complaints.order_by(
+                Complaint.timestamp.desc()
+            ).limit(per_page).all()
+            
+            # Create a mock pagination object
+            class MockPagination:
+                def __init__(self, items):
+                    self.items = items
+                    self.pages = 1
+                    self.page = 1
+                    self.has_prev = False
+                    self.has_next = False
+                    self.prev_num = None
+                    self.next_num = None
+                
+                def iter_pages(self):
+                    return [1]
+            
+            complaints = MockPagination(complaints_list)
         
         return render_template('my_complaints.html',
                              complaints=complaints,
                              user=user)
         
     except Exception as e:
-        logger.error(f"Error loading complaints: {e}")
+        logger.error(f"Error loading complaints: {e}", exc_info=True)
         flash('Error loading complaints.', 'danger')
         return redirect(url_for('profile'))
 
@@ -415,47 +486,76 @@ def my_complaints():
 @app.route('/edit-profile', methods=['GET', 'POST'])
 @login_required
 def edit_profile():
-    """Edit user profile"""
-    current_user = get_current_user()
-    user = User.query.get(current_user['id'])
-    
-    if request.method == 'GET':
-        return render_template('edit_profile.html', user=user)
-    
+    """Edit user profile - FIXED"""
     try:
-        # Update user information
-        user.name = sanitize_input(request.form.get('name', '').strip())
-        user.department = sanitize_input(request.form.get('department', '').strip()) or None
-        user.year = request.form.get('year', type=int) or None
-        user.hostel = sanitize_input(request.form.get('hostel', '').strip()) or None
-        user.room_number = sanitize_input(request.form.get('room_number', '').strip()) or None
-        user.phone = sanitize_input(request.form.get('phone', '').strip()) or None
+        current_user_data = get_current_user()
+        user = User.query.get(current_user_data['id'])
         
-        db.session.commit()
+        if not user:
+            flash('User not found.', 'danger')
+            return redirect(url_for('logout'))
         
-        # Update session
-        session['name'] = user.name
+        if request.method == 'GET':
+            return render_template('edit_profile.html', user=user)
         
-        flash('Profile updated successfully!', 'success')
-        return redirect(url_for('profile'))
+        # POST request - update profile
+        try:
+            # Update user information with validation
+            name = sanitize_input(request.form.get('name', '').strip())
+            if name:
+                user.name = name
+            
+            department = sanitize_input(request.form.get('department', '').strip())
+            user.department = department if department else None
+            
+            year = request.form.get('year', type=int)
+            user.year = year if year else None
+            
+            hostel = sanitize_input(request.form.get('hostel', '').strip())
+            user.hostel = hostel if hostel else None
+            
+            room_number = sanitize_input(request.form.get('room_number', '').strip())
+            user.room_number = room_number if room_number else None
+            
+            phone = sanitize_input(request.form.get('phone', '').strip())
+            user.phone = phone if phone else None
+            
+            db.session.commit()
+            
+            # Update session
+            session['name'] = user.name
+            
+            logger.info(f"Profile updated for user: {user.student_id}")
+            flash('Profile updated successfully!', 'success')
+            return redirect(url_for('profile'))
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating profile: {e}")
+            flash('Error updating profile.', 'danger')
+            return render_template('edit_profile.html', user=user)
         
     except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error updating profile: {e}")
-        flash('Error updating profile.', 'danger')
-        return render_template('edit_profile.html', user=user)
+        logger.error(f"Critical error in edit_profile: {e}", exc_info=True)
+        flash('Error accessing profile settings.', 'danger')
+        return redirect(url_for('profile'))
 
 
 @app.route('/change-password', methods=['GET', 'POST'])
 @login_required
 def change_password():
-    """Change user password"""
-    if request.method == 'GET':
-        return render_template('change_password.html')
-    
+    """Change user password - FIXED"""
     try:
-        current_user = get_current_user()
-        user = User.query.get(current_user['id'])
+        if request.method == 'GET':
+            return render_template('change_password.html')
+        
+        # POST request
+        current_user_data = get_current_user()
+        user = User.query.get(current_user_data['id'])
+        
+        if not user:
+            flash('User not found.', 'danger')
+            return redirect(url_for('logout'))
         
         current_password = request.form.get('current_password', '')
         new_password = request.form.get('new_password', '')
@@ -476,19 +576,24 @@ def change_password():
             return render_template('change_password.html', error=error_msg)
         
         # Update password
-        user.set_password(new_password)
-        db.session.commit()
-        
-        logger.info(f"Password changed for user: {user.student_id}")
-        
-        flash('Password changed successfully!', 'success')
-        return redirect(url_for('profile'))
+        try:
+            user.set_password(new_password)
+            db.session.commit()
+            
+            logger.info(f"Password changed for user: {user.student_id}")
+            
+            flash('Password changed successfully!', 'success')
+            return redirect(url_for('profile'))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error changing password: {e}")
+            return render_template('change_password.html',
+                                 error="An error occurred. Please try again.")
         
     except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error changing password: {e}")
+        logger.error(f"Critical error in change_password: {e}", exc_info=True)
         return render_template('change_password.html',
-                             error="An error occurred. Please try again.")
+                             error="An unexpected error occurred.")
 
 # ============================================================================
 # COMPLAINT SUBMISSION ROUTES
