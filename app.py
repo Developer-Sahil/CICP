@@ -17,12 +17,30 @@ from sqlalchemy import func
 import config
 from datetime import datetime, timedelta
 import logging
+from auth.firebase_auth import firebase_bp
+
 
 app = Flask(__name__)
+app.config.from_object(config)
+
+app.jinja_env.globals.update(
+    FIREBASE_API_KEY=config.FIREBASE_API_KEY,
+    FIREBASE_AUTH_DOMAIN=config.FIREBASE_AUTH_DOMAIN,
+    FIREBASE_PROJECT_ID=config.FIREBASE_PROJECT_ID,
+    FIREBASE_STORAGE_BUCKET=getattr(config, "FIREBASE_STORAGE_BUCKET", ""),
+    FIREBASE_MSG_SENDER_ID=getattr(config, "FIREBASE_MSG_SENDER_ID", ""),
+    FIREBASE_APP_ID=getattr(config, "FIREBASE_APP_ID", "")
+)
+
 app.config['SQLALCHEMY_DATABASE_URI'] = config.DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = config.SECRET_KEY
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+
+# Register Firebase Google Login routes
+from auth.firebase_auth import firebase_bp
+app.register_blueprint(firebase_bp)
+
 
 app.jinja_env.globals.update({
     'min': min,
@@ -37,6 +55,8 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
 
 # Initialize database
 db.init_app(app)

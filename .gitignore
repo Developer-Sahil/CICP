@@ -126,3 +126,6 @@ config_production.py
 *.key
 *.cert
 secrets.json
+
+
+firebase-service-account.json
