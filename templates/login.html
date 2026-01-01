@@ -42,90 +42,16 @@
             <div class="flex-1 border-t"></div>
         </div>
 
-        <!-- 🌐 GOOGLE SIGN IN BUTTON -->
-        <button id="google-btn"
-            class="w-full bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 font-medium">
-            Sign in with Google
-        </button>
-
+        
         <div class="text-center mt-4">
             <p>Don't have an account? <a href="{{ url_for('register') }}" class="text-blue-600">Sign up here</a></p>
         </div>
     </div>
 </div>
 
-<!-- ======================================================================== -->
-<!-- 🔥 FIREBASE AUTH / GOOGLE LOGIN SCRIPT -->
-<script type="module">
-    // --------------------------------------------
-    // 1. Import Firebase SDK (V9 Modular)
-    // --------------------------------------------
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-    import {
-        getAuth, GoogleAuthProvider,
-        signInWithRedirect, getRedirectResult
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-
-    // --------------------------------------------
-    // 2. Firebase Config (PUT YOUR VALUES)
-    // --------------------------------------------
-    const firebaseConfig = {
-  apiKey: "AIzaSyDWfYynv7U7Kw11ArzfAsG1qB_iPjNDqcA",
-  authDomain: "cicp-918e1.firebaseapp.com",
-  projectId: "cicp-918e1",
-  storageBucket: "cicp-918e1.firebasestorage.app",
-  messagingSenderId: "1011995709240",
-  appId: "1:1011995709240:web:701380c0b302e877997bcd",
-  measurementId: "G-VVEY1M4B21"
-};
-
-if (data.redirect) window.location.href = data.redirect;
-else alert(data.message);
 
 
-    // --------------------------------------------
-    // 3. Initialize
-    // --------------------------------------------
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const provider = new GoogleAuthProvider();
 
-    // --------------------------------------------
-    // 4. Handle Google Sign-In Button
-    // --------------------------------------------
-    document.getElementById("google-btn").addEventListener("click", () => {
-        signInWithRedirect(auth, provider);
-    });
-
-    // --------------------------------------------
-    // 5. After Redirect Back From Google
-    // --------------------------------------------
-    getRedirectResult(auth)
-        .then(async (result) => {
-            if (!result || !result.user) return; // no login yet
-
-            const token = await result.user.getIdToken();
-            
-            const response = await fetch("/firebase-login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ idToken: token })
-            });
-
-            const data = await response.json();
-
-            if (data.status === "success") {
-                window.location.href = "/profile";
-            } else {
-                alert(data.message || "Login failed");
-            }
-
-        })
-        .catch(err => {
-            console.error("Redirect Login Error:", err);
-            alert("Login failed: " + err.message);
-        });
-</script>
 <!-- ======================================================================== -->
 
 {% endblock %}

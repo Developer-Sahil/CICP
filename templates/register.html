@@ -15,6 +15,18 @@
             {{ error }}
         </div>
         {% endif %}
+        
+        <!-- GOOGLE SIGNUP -->
+<button id="google-btn" class="w-full mb-4 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-semibold">
+    Sign up with Google
+</button>
+
+<div class="flex items-center my-4">
+    <div class="flex-1 border-t"></div>
+    <p class="px-3 text-gray-400 text-sm">or</p>
+    <div class="flex-1 border-t"></div>
+</div>
+
 
         <form method="POST" action="{{ url_for('register') }}" class="space-y-6" id="registerForm">
             <!-- Name -->
@@ -313,4 +325,40 @@ document.getElementById('registerForm').addEventListener('submit', function(e) {
     }
 });
 </script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup }
+from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+const app = initializeApp({
+  apiKey: "{{ FIREBASE_API_KEY }}",
+  authDomain: "{{ FIREBASE_AUTH_DOMAIN }}",
+  projectId: "{{ FIREBASE_PROJECT_ID }}",
+});
+
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+document.getElementById("google-btn").addEventListener("click", async () => {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const idToken = await result.user.getIdToken();
+
+    const res = await fetch("/firebase-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken })
+    });
+
+    const data = await res.json();
+    window.location.href = data.redirect;
+  } catch (err) {
+    alert("Google Sign-in failed");
+    console.error(err);
+  }
+});
+</script>
+
+
 {% endblock %}
