@@ -251,6 +251,27 @@ class Category(db.Model):
     
     def __repr__(self):
         return f'<Category {self.name}>'
+    
+
+
+# ============================================================================
+# FIREBASE USER MODEL
+# ============================================================================
+
+class FirebaseUser(db.Model):
+    """Google Login authenticated users"""
+    __tablename__ = 'firebase_users'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    firebase_uid = db.Column(db.String(128), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(150), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(120))
+    photo_url = db.Column(db.String(300))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<FirebaseUser {self.email}>'
+
 
 # ============================================================================
 # DATABASE UTILITY FUNCTIONS
@@ -286,3 +307,5 @@ def safe_delete(obj):
         db.session.rollback()
         logger.error(f"Delete error: {str(e)}")
         return False, str(e)
+
+

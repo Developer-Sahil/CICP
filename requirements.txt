@@ -6,3 +6,5 @@ numpy
 scikit-learn
 requests
 Werkzeug>=2.0.0
+firebase-admin
+google-auth

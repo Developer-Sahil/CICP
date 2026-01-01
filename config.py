@@ -19,6 +19,10 @@ DATABASE_URI = os.getenv('DATABASE_URI', 'sqlite:///complaints.db')
 if not DATABASE_URI:
     raise ValueError("DATABASE_URI must be set in environment variables")
 
+#college domain import from .env
+ALLOWED_GOOGLE_DOMAIN = os.getenv("ALLOWED_GOOGLE_DOMAIN", "mycollege.ac.in")
+
+
 # AI API Configuration
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 
@@ -232,7 +236,7 @@ LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 LOG_FILE = os.getenv('LOG_FILE', 'app.log')
 
 # Session Configuration
-SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = False
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 PERMANENT_SESSION_LIFETIME = int(os.getenv('SESSION_LIFETIME', '3600'))
@@ -244,6 +248,15 @@ WTF_CSRF_TIME_LIMIT = None
 # File Upload Configuration
 MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', str(16 * 1024 * 1024)))
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
+
+FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY")
+FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID")
+FIREBASE_AUTH_DOMAIN = os.getenv("FIREBASE_AUTH_DOMAIN")
+FIREBASE_STORAGE_BUCKET = os.getenv("FIREBASE_STORAGE_BUCKET")
+FIREBASE_MSG_SENDER_ID = os.getenv("FIREBASE_MSG_SENDER_ID")
+FIREBASE_APP_ID = os.getenv("FIREBASE_APP_ID")
+
+
 
 def validate_config():
     """

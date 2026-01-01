@@ -2,6 +2,12 @@
 
 {% block title %}My Profile - Campus Complaint Portal{% endblock %}
 
+{% if current_user and current_user.is_google %}
+<p class="text-green-600 font-semibold text-center mt-2">
+    Logged in with Google ({{ current_user.email }})
+</p>
+{% endif %}
+
 {% block content %}
 <div class="max-w-6xl mx-auto">
     <!-- Profile Header -->
@@ -23,6 +29,7 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
         <!-- Left Column - Stats -->
         <div class="lg:col-span-1 space-y-6">
             <!-- Stats Card -->
@@ -69,7 +76,13 @@
                     
                     <div>
                         <p class="text-gray-500">Year</p>
-                        <p class="font-medium">{{ user.year }}{{ ['st', 'nd', 'rd', 'th'][min(user.year-1, 3)] }} Year</p>
+                        <p class="font-medium">
+                            {% if user.year %}
+                                {{ user.year }}{{ ['st','nd','rd','th'][min(user.year-1,3)] }} Year
+                            {% else %}
+                                Not specified
+                            {% endif %}
+                        </p>
                     </div>
                     
                     <div>
@@ -94,6 +107,7 @@
 
         <!-- Right Column - Complaints -->
         <div class="lg:col-span-2 space-y-6">
+
             <!-- Recent Complaints -->
             <div class="bg-white rounded-lg shadow p-6">
                 <div class="flex items-center justify-between mb-6">
@@ -117,9 +131,7 @@
                                     {{ complaint.severity.upper() }}
                                 </span>
                             </div>
-                            <span class="text-xs text-gray-500">
-                                {{ complaint.timestamp.strftime('%b %d, %Y') }}
-                            </span>
+                            <span class="text-xs text-gray-500">{{ complaint.timestamp.strftime('%b %d, %Y') }}</span>
                         </div>
                         
                         <p class="text-sm text-gray-700 mb-3">
@@ -127,12 +139,9 @@
                         </p>
                         
                         <details class="text-xs">
-                            <summary class="text-blue-600 hover:text-blue-800 cursor-pointer">
-                                View full complaint
-                            </summary>
+                            <summary class="text-blue-600 hover:text-blue-800 cursor-pointer">View full complaint</summary>
                             <div class="mt-2 p-3 bg-gray-50 rounded">
                                 <p class="text-gray-700">{{ complaint.rewritten_text }}</p>
-                                
                                 <div class="mt-3 pt-3 border-t border-gray-200">
                                     <p class="text-gray-500 italic">Original submission:</p>
                                     <p class="text-gray-600 mt-1">{{ complaint.raw_text }}</p>
@@ -167,7 +176,8 @@
                                 <span class="text-sm text-gray-600">{{ count }}</span>
                             </div>
                             <div class="w-full bg-gray-200 rounded-full h-2">
-                                <div class="bg-blue-600 h-2 rounded-full" style="width: {{ (count / stats.total_complaints * 100) if stats.total_complaints > 0 else 0 }}%"></div>
+                                <div class="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                                    style="width: '{{ ((count / stats.total_complaints) * 100)|round(2) if stats.total_complaints > 0 else 0 }}%';"</div>
                             </div>
                         </div>
                     </div>
@@ -182,32 +192,22 @@
                 
                 <div class="grid grid-cols-2 gap-4">
                     <a href="{{ url_for('submit') }}" class="flex items-center justify-center p-4 border-2 border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
-                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                        </svg>
-                        New Complaint
+                        ➕ New Complaint
                     </a>
                     
                     <a href="{{ url_for('my_complaints') }}" class="flex items-center justify-center p-4 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                        </svg>
-                        View All
+                        📄 View All
                     </a>
                     
                     <a href="{{ url_for('edit_profile') }}" class="flex items-center justify-center p-4 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                        </svg>
-                        Edit Profile
+                        🛠 Edit Profile
                     </a>
                     
+                    {% if not current_user.is_google %}
                     <a href="{{ url_for('change_password') }}" class="flex items-center justify-center p-4 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                        </svg>
-                        Change Password
+                        🔐 Change Password
                     </a>
+                    {% endif %}
                 </div>
             </div>
         </div>

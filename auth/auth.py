@@ -91,23 +91,29 @@ def validate_password(password):
     return True, None
 
 
+from functools import wraps
+from flask import session, redirect, url_for, flash
+
+# auth/auth.py
+from functools import wraps
+from flask import session, redirect, url_for, flash, request
+
 def login_required(f):
-    """
-    Decorator to require login for routes.
-    
-    Usage:
-        @app.route('/protected')
-        @login_required
-        def protected_route():
-            ...
-    """
     @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Please log in to access this page.', 'warning')
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
+    def wrapper(*args, **kwargs):
+        # check normal login
+        if session.get("logged_in") and session.get("user_id"):
+            return f(*args, **kwargs)
+
+        # check google login session
+        if session.get("firebase_uid") and session.get("user_id"):
+            return f(*args, **kwargs)
+
+        # if next page was intended, keep it
+        next_url = request.path
+        flash("Please login to continue.", "warning")
+        return redirect(url_for("login", next=next_url))
+    return wrapper
 
 
 def admin_required(f):
@@ -134,38 +140,32 @@ def admin_required(f):
     return decorated_function
 
 
-def get_current_user():
-    """
-    Get current logged-in user from session.
-    
-    Returns:
-        dict or None: User information if logged in
-    """
-    if 'user_id' not in session:
-        return None
-    
-    return {
-        'id': session.get('user_id'),
-        'student_id': session.get('student_id'),
-        'email': session.get('email'),
-        'name': session.get('name'),
-        'is_admin': session.get('is_admin', False)
-    }
+from flask import session
 
+def get_current_user():
+    if not session.get("logged_in"):
+        return None
+    return session.get("user")
+
+
+
+from flask import session
+
+# auth/auth.py
+from flask import session
 
 def login_user(user):
-    """
-    Log in a user by setting session variables.
-    
-    Args:
-        user: User model instance
-    """
-    session['user_id'] = user.id
-    session['student_id'] = user.student_id
-    session['email'] = user.email
-    session['name'] = user.name
-    session['is_admin'] = user.is_admin
+    session["user"] = {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "student_id": getattr(user, "student_id", None),
+        "is_google": getattr(user, "is_google", False)
+    }
+    session["logged_in"] = True        # 💥 THIS WAS MISSING
+    session["user_id"] = user.id       # Optional: match your other checks
     session.permanent = True
+
 
 
 def logout_user():
