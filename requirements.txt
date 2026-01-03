@@ -1,10 +1,10 @@
-Flask
-Flask-SQLAlchemy
+Flask>=2.0.0
 python-dotenv
 google-generativeai
 numpy
 scikit-learn
 requests
 Werkzeug>=2.0.0
-firebase-admin
+firebase-admin>=6.0.0
 google-auth
+google-cloud-firestore
