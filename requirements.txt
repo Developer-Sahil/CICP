@@ -1,5 +1,4 @@
 Flask
-Flask-SQLAlchemy
 python-dotenv
 google-generativeai
 numpy
@@ -8,3 +7,4 @@ requests
 Werkzeug>=2.0.0
 firebase-admin
 google-auth
+google-cloud-firestore

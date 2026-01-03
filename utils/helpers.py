@@ -1,4 +1,3 @@
-from database.models import Complaint, IssueCluster, Category
 from sqlalchemy import func
 from datetime import datetime, timedelta
 

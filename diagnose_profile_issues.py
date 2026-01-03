@@ -2,7 +2,6 @@
 Diagnostic script to check profile-related database issues
 """
 from app import app, db
-from database.models import User, Complaint
 from sqlalchemy import inspect, text
 import logging
 

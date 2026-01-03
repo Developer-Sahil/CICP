@@ -1,8 +1,6 @@
-from database.models import db, Complaint, IssueCluster
 from ai.embed import cosine_similarity
 import config
 from datetime import datetime
-from sqlalchemy.exc import SQLAlchemyError
 import logging
 
 logger = logging.getLogger(__name__)
