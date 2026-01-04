@@ -21,3 +21,6 @@ steps:
 
 images:
   - "gcr.io/$PROJECT_ID/cicp:$SHORT_SHA"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
