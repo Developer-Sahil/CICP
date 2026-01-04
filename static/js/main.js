@@ -25,33 +25,85 @@ async function apiCall(url, method = 'GET', data = null) {
 // UPVOTE FUNCTION
 async function upvote(complaintId) {
     try {
+        console.log('Upvoting complaint:', complaintId);
+        
+        // Get the button that was clicked
+        const button = event.target.closest("button");
+        
+        if (!button) {
+            console.error('Button not found');
+            return;
+        }
+        
         // Disable the button immediately
-        const btn = event.target.closest("button");
-        btn.disabled = true;
-        btn.textContent = "Upvoting...";
+        const originalContent = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<span>Upvoting...</span>';
 
         const response = await fetch(`/complaint/${complaintId}/upvote`, {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
 
         const data = await response.json();
+        console.log('Upvote response:', data);
 
         if (data.success) {
-            showNotification("Upvoted!", "success");
+            showNotification("Upvoted successfully!", "success");
 
-            // Update button look after upvote
-            btn.textContent = `👍 Upvoted (${data.upvotes})`;
-            btn.classList.add("text-green-700");
+            // Update button with new count
+            button.innerHTML = `<span>👍 Upvoted (${data.upvotes})</span>`;
+            button.classList.add("text-green-600", "font-semibold");
+            button.classList.remove("text-blue-600");
+            
+            // Keep button disabled so user can't upvote again
+            // button.disabled = true; // Already disabled
+            
+            console.log('Upvote successful, new count:', data.upvotes);
         } else {
-            showNotification("Error: " + data.error, "error");
-            btn.disabled = false;
-            btn.textContent = "Upvote";
+            console.error('Upvote failed:', data.error);
+            showNotification("Error: " + (data.error || "Failed to upvote"), "error");
+            
+            // Re-enable button on error
+            button.disabled = false;
+            button.innerHTML = originalContent;
         }
     } catch (error) {
         console.error("Upvote error:", error);
-        showNotification("Failed to upvote. Try again.", "error");
-        btn.disabled = false;
-        btn.textContent = "Upvote";
+        showNotification("Failed to upvote. Please try again.", "error");
+        
+        // Re-enable button on error
+        const button = event.target.closest("button");
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = button.innerHTML.replace('Upvoting...', 'Upvote');
+        }
+    }
+}
+
+// Make upvote function globally available
+window.upvote = upvote;
+
+async function apiCall(url, method = 'GET', data = null) {
+    const options = {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    };
+    
+    if (data) {
+        options.body = JSON.stringify(data);
+    }
+    
+    try {
+        const response = await fetch(url, options);
+        return await response.json();
+    } catch (error) {
+        console.error('API call failed:', error);
+        throw error;
     }
 }
 

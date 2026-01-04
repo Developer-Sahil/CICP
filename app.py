@@ -311,14 +311,30 @@ def profile():
     """User profile page"""
     try:
         current_user_data = get_current_user()
+        
+        if not current_user_data:
+            flash('Please log in to view your profile.', 'warning')
+            return redirect(url_for('login'))
+        
         user = User.get_by_id(current_user_data['id'])
         
         if not user:
+            logger.error(f"User not found in database: {current_user_data['id']}")
             flash('User account not found. Please login again.', 'danger')
             return redirect(url_for('logout'))
         
-        # Get complaints
-        complaints = User.get_complaints(user['id'])
+        logger.info(f"Loading profile for user: {user['email']}")
+        
+        # Get user's complaints
+        complaints = []
+        try:
+            # Get all complaints and filter by user_id
+            all_complaints = Complaint.get_all()
+            complaints = [c for c in all_complaints if c.get('user_id') == user['id']]
+            logger.info(f"Found {len(complaints)} complaints for user {user['id']}")
+        except Exception as e:
+            logger.error(f"Error getting user complaints: {e}")
+            complaints = []
         
         # Calculate stats
         total_complaints = len(complaints)
@@ -333,14 +349,22 @@ def profile():
             'low_severity': low_severity
         }
         
-        # Get recent complaints
-        recent_complaints = complaints[:5]
+        logger.info(f"User stats: {stats}")
+        
+        # Get recent complaints (last 5)
+        recent_complaints = sorted(
+            complaints,
+            key=lambda x: x.get('timestamp', datetime.min),
+            reverse=True
+        )[:5]
         
         # Category breakdown
         category_breakdown = {}
         for c in complaints:
             cat = c.get('category', 'Other')
             category_breakdown[cat] = category_breakdown.get(cat, 0) + 1
+        
+        logger.info(f"Category breakdown: {category_breakdown}")
         
         return render_template('profile.html',
                              user=user,
@@ -731,13 +755,39 @@ def cluster_detail(cluster_id):
 def upvote_complaint(complaint_id):
     """API endpoint to upvote a complaint"""
     try:
+        logger.info(f"Upvote request for complaint: {complaint_id}")
+        
+        # Check if complaint exists
+        complaint = Complaint.get_by_id(complaint_id)
+        if not complaint:
+            logger.error(f"Complaint not found: {complaint_id}")
+            return jsonify({
+                'success': False, 
+                'error': 'Complaint not found'
+            }), 404
+        
+        # Increment upvotes
         upvotes = Complaint.increment_upvotes(complaint_id)
+        
         if upvotes is not None:
-            return jsonify({'success': True, 'upvotes': upvotes}), 200
-        return jsonify({'success': False, 'error': 'Complaint not found'}), 404
+            logger.info(f"Upvoted complaint {complaint_id}, new count: {upvotes}")
+            return jsonify({
+                'success': True, 
+                'upvotes': upvotes
+            }), 200
+        else:
+            logger.error(f"Failed to increment upvotes for {complaint_id}")
+            return jsonify({
+                'success': False, 
+                'error': 'Failed to upvote'
+            }), 500
+        
     except Exception as e:
-        logger.error(f"Upvote error: {str(e)}")
-        return jsonify({'success': False, 'error': 'Failed to upvote'}), 500
+        logger.error(f"Upvote error for {complaint_id}: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False, 
+            'error': 'An error occurred'
+        }), 500
 
 @app.route('/api/rewrite', methods=['POST'])
 def api_rewrite():
