@@ -1,4 +1,11 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from datetime import datetime, timedelta
+import logging
+
+# ========== IMPORT CONFIG FIRST ==========
+import config
+
+# ========== IMPORT DATABASE MODELS ==========
 from database.firebase_models import User, Complaint, IssueCluster, Category, initialize_categories
 
 # Helper function to add get_all to User class
@@ -17,25 +24,47 @@ def _get_all_users():
         return []
 
 User.get_all = staticmethod(_get_all_users)
+
+# ========== IMPORT AI MODULES ==========
 from ai.rewrite import rewrite_complaint
 from ai.classify import classify_category
 from ai.severity import detect_severity
 from ai.embed import generate_embedding
 from ai.cluster import assign_cluster, update_clusters
+
+# ========== IMPORT UTILITIES ==========
 from utils.firebase_helpers import get_dashboard_stats, get_recent_complaints
+
+# ========== IMPORT AUTH ==========
 from auth.auth import (
     login_required, admin_required, get_current_user,
     login_user, logout_user, update_last_login,
     validate_email, validate_student_id, validate_password,
     sanitize_input, check_rate_limit
 )
-from datetime import datetime, timedelta
-import logging
-import config
 
+# ========== CREATE FLASK APP ==========
 app = Flask(__name__)
 app.config.from_object(config)
 
+# ========== SESSION CONFIGURATION ==========
+app.secret_key = config.SECRET_KEY
+app.config['SECRET_KEY'] = config.SECRET_KEY
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_PERMANENT'] = True
+app.config['SESSION_USE_SIGNER'] = True
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+
+# Session cookie settings
+app.config['SESSION_COOKIE_NAME'] = 'cicp_session'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+
+print(f"✓ Secret key configured: {app.secret_key[:10]}...")
+print(f"✓ Session lifetime: {app.config['PERMANENT_SESSION_LIFETIME']}")
+
+# ========== JINJA GLOBALS ==========
 app.jinja_env.globals.update(
     FIREBASE_API_KEY=config.FIREBASE_API_KEY,
     FIREBASE_AUTH_DOMAIN=config.FIREBASE_AUTH_DOMAIN,
@@ -45,13 +74,7 @@ app.jinja_env.globals.update(
     FIREBASE_APP_ID=getattr(config, "FIREBASE_APP_ID", "")
 )
 
-app.config['SECRET_KEY'] = config.SECRET_KEY
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
-
-# Register Firebase Google Login routes
-from auth.firebase_auth import firebase_bp
-app.register_blueprint(firebase_bp)
-
+# Helper functions for templates
 app.jinja_env.globals.update({
     'min': min,
     'max': max,
@@ -59,27 +82,31 @@ app.jinja_env.globals.update({
     'len': len
 })
 
-# Configure logging
+# ========== REGISTER BLUEPRINTS ==========
+from auth.firebase_auth import firebase_bp
+app.register_blueprint(firebase_bp)
+
+# ========== CONFIGURE LOGGING ==========
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Initialize categories
+# ========== INITIALIZE CATEGORIES ==========
 try:
     initialize_categories()
     logger.info("Categories initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize categories: {e}")
 
-# Context processor
+# ========== CONTEXT PROCESSOR ==========
 @app.context_processor
 def inject_user():
     """Make current user available in all templates"""
     return dict(current_user=get_current_user())
 
-# ================== ERROR HANDLERS ==================
+# ========== ERROR HANDLERS ==========
 @app.errorhandler(404)
 def not_found_error(error):
     return render_template('error.html', error_code=404, error_message="Page not found"), 404
@@ -93,6 +120,7 @@ def internal_error(error):
 def handle_exception(e):
     logger.error(f"Unhandled exception: {str(e)}", exc_info=True)
     return render_template('error.html', error_code=500, error_message="An unexpected error occurred"), 500
+
 
 # ============================================================================
 # PUBLIC ROUTES
@@ -119,6 +147,7 @@ def register():
         return render_template('register.html')
     
     try:
+        # Get form data
         name = sanitize_input(request.form.get('name', '').strip())
         student_id = sanitize_input(request.form.get('student_id', '').strip().upper())
         email = request.form.get('email', '').strip().lower()
@@ -130,27 +159,37 @@ def register():
         room_number = sanitize_input(request.form.get('room_number', '').strip())
         phone = sanitize_input(request.form.get('phone', '').strip())
         
+        # Validation
         if not all([name, student_id, email, password, confirm_password]):
+            logger.warning("Registration attempt with missing required fields")
             return render_template('register.html', error="Please fill in all required fields")
         
         if password != confirm_password:
+            logger.warning("Registration attempt with mismatched passwords")
             return render_template('register.html', error="Passwords do not match")
         
         if not validate_email(email):
+            logger.warning(f"Registration attempt with invalid email: {email}")
             return render_template('register.html', error="Invalid email address")
         
         if not validate_student_id(student_id):
+            logger.warning(f"Registration attempt with invalid student ID: {student_id}")
             return render_template('register.html', error="Invalid student ID format (6-15 alphanumeric characters)")
         
         is_valid, error_msg = validate_password(password)
         if not is_valid:
+            logger.warning(f"Registration attempt with weak password")
             return render_template('register.html', error=error_msg)
         
         # Check if user exists
-        if User.get_by_email(email):
+        existing_user = User.get_by_email(email)
+        if existing_user:
+            logger.warning(f"Registration attempt with existing email: {email}")
             return render_template('register.html', error="Email already registered")
         
-        if User.get_by_student_id(student_id):
+        existing_student = User.get_by_student_id(student_id)
+        if existing_student:
+            logger.warning(f"Registration attempt with existing student ID: {student_id}")
             return render_template('register.html', error="Student ID already registered")
         
         # Create user
@@ -165,24 +204,35 @@ def register():
             'hostel': hostel if hostel else None,
             'room_number': room_number if room_number else None,
             'phone': phone if phone else None,
-            'is_google': False
+            'is_google': False,
+            'is_admin': False,
+            'is_active': True,
+            'email_verified': False
         }
         
         user = User.create(user_data)
         if not user:
-            return render_template('register.html', error="Failed to create account")
+            logger.error(f"Failed to create user in Firestore: {email}")
+            return render_template('register.html', error="Failed to create account. Please try again.")
         
-        logger.info(f"New user registered: {student_id}")
+        logger.info(f"✓ New user registered: {student_id} ({email})")
         
-        # Log in the user
+        # Log in the user immediately after registration
         login_user(user)
         User.update_last_login(user['id'])
         
+        # Verify session was set
+        if not session.get("logged_in"):
+            logger.error("Session not set after registration")
+            flash('Account created but login failed. Please login manually.', 'warning')
+            return redirect(url_for('login'))
+        
+        logger.info(f"✓ User auto-logged in after registration: {email}")
         flash('Registration successful! Welcome to the portal.', 'success')
         return redirect(url_for('profile'))
         
     except Exception as e:
-        logger.error(f"Error during registration: {e}")
+        logger.error(f"Error during registration: {e}", exc_info=True)
         return render_template('register.html', error="An error occurred. Please try again.")
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -449,15 +499,47 @@ def submit():
     """Complaint submission page"""
     if request.method == 'GET':
         try:
-            categories = Category.get_all()
-            if not categories:
+            # Fix: Always initialize categories if they don't exist
+            if Category.count() == 0:
+                logger.info("No categories found, initializing...")
                 initialize_categories()
-                categories = Category.get_all()
+            
+            categories = Category.get_all()
+            
+            if not categories:
+                logger.error("Categories still empty after initialization")
+                # Emergency fallback
+                return render_template('submit.html', 
+                                     categories=[
+                                         {'name': 'Mess Food Quality'},
+                                         {'name': 'Campus Wi-Fi'},
+                                         {'name': 'Medical Center'},
+                                         {'name': 'Placement/CDC'},
+                                         {'name': 'Faculty Concerns'},
+                                         {'name': 'Hostel Maintenance'},
+                                         {'name': 'Other'}
+                                     ], 
+                                     error=None)
+            
+            logger.info(f"Loaded {len(categories)} categories for form")
             return render_template('submit.html', categories=categories, error=None)
+            
         except Exception as e:
             logger.error(f"Error in submit GET: {str(e)}")
-            return render_template('submit.html', categories=[], error="Error loading form.")
+            # Emergency fallback with hardcoded categories
+            return render_template('submit.html', 
+                                 categories=[
+                                     {'name': 'Mess Food Quality'},
+                                     {'name': 'Campus Wi-Fi'},
+                                     {'name': 'Medical Center'},
+                                     {'name': 'Placement/CDC'},
+                                     {'name': 'Faculty Concerns'},
+                                     {'name': 'Hostel Maintenance'},
+                                     {'name': 'Other'}
+                                 ], 
+                                 error="Error loading form. Using default categories.")
 
+    # POST request handling (rest remains the same)
     if request.method == 'POST':
         try:
             current_user = get_current_user()
