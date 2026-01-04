@@ -833,4 +833,4 @@ def health_check():
         }), 503
 
 if __name__ == '__main__':
-    app.run(debug=config.DEBUG, host='0.0.0.0', port=5000)
+    app.run(debug=config.DEBUG, host='0.0.0.0', port=8080)
