@@ -8,3 +8,4 @@ Werkzeug>=2.0.0
 firebase-admin>=6.0.0
 google-auth
 google-cloud-firestore
+gunicorn>=21.0.0
