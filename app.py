@@ -644,19 +644,65 @@ def success():
 def dashboard():
     """Admin dashboard"""
     try:
+        logger.info("Loading dashboard...")
+        
+        # Get statistics
         stats = get_dashboard_stats()
+        logger.info(f"Stats: {stats.get('total_complaints', 0)} complaints")
+        
+        # Get all clusters
         clusters = IssueCluster.get_all(limit=20)
+        logger.info(f"Clusters: {len(clusters)}")
         
-        # Add complaint counts to clusters
+        # Add complaint details to each cluster
         for cluster in clusters:
-            complaints = Complaint.get_by_cluster(cluster['id'])
-            cluster['complaints'] = complaints
+            try:
+                complaints = Complaint.get_by_cluster(cluster['id'])
+                cluster['complaints'] = complaints
+                logger.info(f"Cluster {cluster['id']}: {len(complaints)} complaints")
+            except Exception as e:
+                logger.error(f"Error getting complaints for cluster {cluster['id']}: {e}")
+                cluster['complaints'] = []
         
+        # Get recent complaints directly
         recent = get_recent_complaints(limit=10)
-        return render_template('dashboard.html', stats=stats, clusters=clusters, recent=recent)
+        logger.info(f"Recent complaints: {len(recent)}")
+        
+        # Convert timestamp strings to datetime objects for template
+        for complaint in recent:
+            if complaint.get('timestamp'):
+                if isinstance(complaint['timestamp'], str):
+                    try:
+                        complaint['timestamp'] = datetime.fromisoformat(complaint['timestamp'].replace('Z', '+00:00'))
+                    except:
+                        complaint['timestamp'] = datetime.utcnow()
+        
+        # Log what we're sending to template
+        logger.info(f"Rendering dashboard with:")
+        logger.info(f"  - Total complaints: {stats.get('total_complaints', 0)}")
+        logger.info(f"  - High severity: {stats.get('severity_stats', {}).get('high', 0)}")
+        logger.info(f"  - Clusters: {len(clusters)}")
+        logger.info(f"  - Recent: {len(recent)}")
+        
+        return render_template('dashboard.html', 
+                             stats=stats, 
+                             clusters=clusters, 
+                             recent=recent)
+        
     except Exception as e:
-        logger.error(f"Dashboard error: {e}")
-        return render_template('dashboard.html', stats={}, clusters=[], recent=[], error="Dashboard error")
+        logger.error(f"Dashboard error: {e}", exc_info=True)
+        # Return dashboard with empty data instead of error page
+        return render_template('dashboard.html', 
+                             stats={
+                                 'total_complaints': 0,
+                                 'severity_stats': {'high': 0, 'medium': 0, 'low': 0},
+                                 'category_stats': {},
+                                 'total_clusters': 0,
+                                 'recent_complaints': 0
+                             }, 
+                             clusters=[], 
+                             recent=[],
+                             error="Error loading dashboard data")
 
 @app.route('/cluster/<cluster_id>')
 def cluster_detail(cluster_id):

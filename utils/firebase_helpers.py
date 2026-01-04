@@ -1,6 +1,6 @@
 """
 Helper functions for Firebase Firestore operations
-Replaces SQLAlchemy-based helpers
+FIXED VERSION with better error handling
 """
 from database.firebase_models import Complaint, IssueCluster, Category
 from datetime import datetime, timedelta
@@ -16,9 +16,13 @@ def get_dashboard_stats():
         dict: Dashboard statistics
     """
     try:
+        logger.info("Getting dashboard stats...")
+        
         # Total complaints
         all_complaints = Complaint.get_all()
         total_complaints = len(all_complaints)
+        
+        logger.info(f"Found {total_complaints} total complaints")
         
         # Complaints by severity
         severity_stats = {
@@ -26,6 +30,8 @@ def get_dashboard_stats():
             'medium': sum(1 for c in all_complaints if c.get('severity') == 'medium'),
             'low': sum(1 for c in all_complaints if c.get('severity') == 'low')
         }
+        
+        logger.info(f"Severity: high={severity_stats['high']}, medium={severity_stats['medium']}, low={severity_stats['low']}")
         
         # Complaints by category
         category_stats = {}
@@ -35,15 +41,37 @@ def get_dashboard_stats():
             if count > 0:
                 category_stats[cat['name']] = count
         
+        logger.info(f"Categories: {category_stats}")
+        
         # Active clusters
         total_clusters = IssueCluster.count()
+        logger.info(f"Total clusters: {total_clusters}")
         
         # Recent activity (last 7 days)
-        week_ago = datetime.utcnow() - timedelta(days=7)
-        recent_complaints = sum(1 for c in all_complaints 
-                               if c.get('timestamp') and 
-                               (isinstance(c['timestamp'], datetime) and c['timestamp'] >= week_ago or
-                                isinstance(c['timestamp'], str) and datetime.fromisoformat(c['timestamp'].replace('Z', '+00:00')) >= week_ago))
+        from datetime import timezone
+        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+        recent_complaints = 0
+        
+        for c in all_complaints:
+            timestamp = c.get('timestamp')
+            if timestamp:
+                if isinstance(timestamp, datetime):
+                    # Make timezone-aware if it isn't already
+                    if timestamp.tzinfo is None:
+                        timestamp = timestamp.replace(tzinfo=timezone.utc)
+                    if timestamp >= week_ago:
+                        recent_complaints += 1
+                elif isinstance(timestamp, str):
+                    try:
+                        dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        if dt >= week_ago:
+                            recent_complaints += 1
+                    except:
+                        pass
+        
+        logger.info(f"Recent complaints (7 days): {recent_complaints}")
         
         # Top categories
         top_categories = sorted(
@@ -52,7 +80,7 @@ def get_dashboard_stats():
             reverse=True
         )[:5]
         
-        return {
+        stats = {
             'total_complaints': total_complaints,
             'severity_stats': severity_stats,
             'category_stats': category_stats,
@@ -61,8 +89,11 @@ def get_dashboard_stats():
             'top_categories': top_categories
         }
         
+        logger.info(f"Dashboard stats complete: {stats}")
+        return stats
+        
     except Exception as e:
-        logger.error(f"Error getting dashboard stats: {e}")
+        logger.error(f"Error getting dashboard stats: {e}", exc_info=True)
         return {
             'total_complaints': 0,
             'severity_stats': {'high': 0, 'medium': 0, 'low': 0},
@@ -84,7 +115,11 @@ def get_recent_complaints(limit=10):
         list: List of complaint dicts
     """
     try:
+        logger.info(f"Getting {limit} recent complaints...")
+        
         complaints = Complaint.get_all(limit=limit)
+        
+        logger.info(f"Retrieved {len(complaints)} complaints")
         
         # Convert timestamp strings to datetime objects
         for c in complaints:
@@ -93,11 +128,16 @@ def get_recent_complaints(limit=10):
                     c['timestamp'] = datetime.fromisoformat(c['timestamp'].replace('Z', '+00:00'))
                 except:
                     c['timestamp'] = datetime.utcnow()
+            elif c.get('timestamp') is None:
+                c['timestamp'] = datetime.utcnow()
         
-        return complaints
+        # Sort by timestamp descending
+        complaints.sort(key=lambda x: x.get('timestamp', datetime.min), reverse=True)
+        
+        return complaints[:limit]
         
     except Exception as e:
-        logger.error(f"Error getting recent complaints: {e}")
+        logger.error(f"Error getting recent complaints: {e}", exc_info=True)
         return []
 
 
@@ -113,7 +153,8 @@ def get_trending_issues(days=7, limit=5):
         list: List of (cluster, recent_count) tuples
     """
     try:
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        from datetime import timezone
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
         
         # Get all clusters
         clusters = IssueCluster.get_all()
@@ -124,10 +165,26 @@ def get_trending_issues(days=7, limit=5):
             # Get recent complaints for this cluster
             all_cluster_complaints = Complaint.get_by_cluster(cluster['id'])
             
-            recent_count = sum(1 for c in all_cluster_complaints
-                             if c.get('timestamp') and
-                             (isinstance(c['timestamp'], datetime) and c['timestamp'] >= cutoff_date or
-                              isinstance(c['timestamp'], str) and datetime.fromisoformat(c['timestamp'].replace('Z', '+00:00')) >= cutoff_date))
+            recent_count = 0
+            for c in all_cluster_complaints:
+                timestamp = c.get('timestamp')
+                if timestamp:
+                    if isinstance(timestamp, datetime):
+                        if timestamp.tzinfo is None:
+                            from datetime import timezone
+                            timestamp = timestamp.replace(tzinfo=timezone.utc)
+                        if timestamp >= cutoff_date:
+                            recent_count += 1
+                    elif isinstance(timestamp, str):
+                        try:
+                            from datetime import timezone
+                            dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                            if dt.tzinfo is None:
+                                dt = dt.replace(tzinfo=timezone.utc)
+                            if dt >= cutoff_date:
+                                recent_count += 1
+                        except:
+                            pass
             
             if recent_count > 0:
                 trending.append((cluster, recent_count))
@@ -138,7 +195,7 @@ def get_trending_issues(days=7, limit=5):
         return trending[:limit]
         
     except Exception as e:
-        logger.error(f"Error getting trending issues: {e}")
+        logger.error(f"Error getting trending issues: {e}", exc_info=True)
         return []
 
 
@@ -162,7 +219,12 @@ def format_timestamp(timestamp):
         except:
             return "Unknown"
     
-    now = datetime.utcnow()
+    # Make timezone-aware if needed
+    from datetime import timezone
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    
+    now = datetime.now(timezone.utc)
     diff = now - timestamp
     
     if diff.days > 7:
