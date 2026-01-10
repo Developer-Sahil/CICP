@@ -157,11 +157,12 @@
                 <!-- Upvote Button ONLY -->
                 <div class="flex items-center justify-end mt-3">
                     <button 
-                        class="text-blue-600 hover:text-blue-800 text-xs font-medium flex items-center space-x-1"
-                        onclick="upvote({{ complaint.id }})"
+                        class="text-blue-600 hover:text-blue-800 text-xs font-medium flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-blue-50 transition-colors"
+                        onclick="upvote('{{ complaint.id }}')"
+                        type="button"
                     >
                         <span>👍</span>
-                        <span>Upvote ({{ complaint.upvotes }})</span>
+                        <span>Upvote ({{ complaint.get('upvotes', 0) }})</span>
                     </button>
                 </div>
 

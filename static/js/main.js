@@ -25,10 +25,8 @@ async function apiCall(url, method = 'GET', data = null) {
 // UPVOTE FUNCTION
 async function upvote(complaintId) {
     try {
-        console.log('Upvoting complaint:', complaintId);
-        
         // Get the button that was clicked
-        const button = event.target.closest("button");
+        const button = event.currentTarget;
         
         if (!button) {
             console.error('Button not found');
@@ -38,7 +36,9 @@ async function upvote(complaintId) {
         // Disable the button immediately
         const originalContent = button.innerHTML;
         button.disabled = true;
-        button.innerHTML = '<span>Upvoting...</span>';
+        button.innerHTML = '<span class="flex items-center justify-center"><svg class="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Upvoting...</span>';
+
+        console.log('Upvoting complaint:', complaintId);
 
         const response = await fetch(`/complaint/${complaintId}/upvote`, {
             method: 'POST',
@@ -47,38 +47,32 @@ async function upvote(complaintId) {
             }
         });
 
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
         console.log('Upvote response:', data);
 
         if (data.success) {
-            showNotification("Upvoted successfully!", "success");
-
             // Update button with new count
-            button.innerHTML = `<span>👍 Upvoted (${data.upvotes})</span>`;
-            button.classList.add("text-green-600", "font-semibold");
-            button.classList.remove("text-blue-600");
+            button.innerHTML = `<span class="flex items-center space-x-1"><span>👍</span><span>Upvoted (${data.upvotes})</span></span>`;
+            button.classList.add("bg-green-100", "text-green-700", "cursor-not-allowed");
+            button.classList.remove("text-blue-600", "hover:text-blue-800");
             
-            // Keep button disabled so user can't upvote again
-            // button.disabled = true; // Already disabled
-            
-            console.log('Upvote successful, new count:', data.upvotes);
+            // Show success notification
+            showNotification("Upvoted successfully!", "success");
         } else {
-            console.error('Upvote failed:', data.error);
-            showNotification("Error: " + (data.error || "Failed to upvote"), "error");
-            
-            // Re-enable button on error
-            button.disabled = false;
-            button.innerHTML = originalContent;
+            throw new Error(data.error || "Failed to upvote");
         }
     } catch (error) {
         console.error("Upvote error:", error);
-        showNotification("Failed to upvote. Please try again.", "error");
+        showNotification("Failed to upvote: " + error.message, "error");
         
         // Re-enable button on error
-        const button = event.target.closest("button");
         if (button) {
             button.disabled = false;
-            button.innerHTML = button.innerHTML.replace('Upvoting...', 'Upvote');
+            button.innerHTML = originalContent;
         }
     }
 }

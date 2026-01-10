@@ -58,8 +58,9 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 # Session cookie settings
 app.config['SESSION_COOKIE_NAME'] = 'cicp_session'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # CHANGED from 'Lax' to 'None'
+app.config['SESSION_COOKIE_SECURE'] = True      # CHANGED from False to True (required for SameSite=None)
+app.config['SESSION_COOKIE_DOMAIN'] = None 
 
 print(f"✓ Secret key configured: {app.secret_key[:10]}...")
 print(f"✓ Session lifetime: {app.config['PERMANENT_SESSION_LIFETIME']}")
@@ -380,17 +381,34 @@ def profile():
 @app.route('/my-complaints')
 @login_required
 def my_complaints():
-    """View all user complaints"""
+    """View all user complaints - FIXED VERSION"""
     try:
         current_user_data = get_current_user()
+        
+        if not current_user_data:
+            flash('Please log in to view your complaints.', 'warning')
+            return redirect(url_for('login'))
+        
         user = User.get_by_id(current_user_data['id'])
         
         if not user:
             flash('User not found.', 'danger')
             return redirect(url_for('logout'))
         
-        # Get all complaints
-        complaints = User.get_complaints(user['id'])
+        logger.info(f"Loading complaints for user: {user['id']}")
+        
+        # FIXED: Get ALL complaints and filter by user_id
+        all_complaints = Complaint.get_all()
+        complaints = [c for c in all_complaints if c.get('user_id') == user['id']]
+        
+        # Sort by timestamp (newest first)
+        complaints.sort(key=lambda x: x.get('timestamp', datetime.min), reverse=True)
+        
+        logger.info(f"Found {len(complaints)} complaints for user {user['id']}")
+        
+        # Debug: Log first few complaint user_ids
+        for i, c in enumerate(all_complaints[:5]):
+            logger.info(f"Sample complaint {i}: user_id={c.get('user_id')}, matches={c.get('user_id') == user['id']}")
         
         # Simple pagination
         page = request.args.get('page', 1, type=int)
@@ -399,14 +417,15 @@ def my_complaints():
         end = start + per_page
         
         paginated_complaints = complaints[start:end]
-        total_pages = (len(complaints) + per_page - 1) // per_page
+        total_pages = max((len(complaints) + per_page - 1) // per_page, 1)
         
         # Create pagination object
         class Pagination:
-            def __init__(self, items, page, pages):
+            def __init__(self, items, page, pages, total):
                 self.items = items
                 self.page = page
                 self.pages = pages
+                self.total = total
                 self.has_prev = page > 1
                 self.has_next = page < pages
                 self.prev_num = page - 1 if self.has_prev else None
@@ -415,9 +434,12 @@ def my_complaints():
             def iter_pages(self):
                 return range(1, self.pages + 1)
         
-        pagination = Pagination(paginated_complaints, page, max(total_pages, 1))
+        pagination = Pagination(paginated_complaints, page, total_pages, len(complaints))
         
-        return render_template('my_complaints.html', complaints=pagination, user=user)
+        return render_template('my_complaints.html', 
+                             complaints=pagination, 
+                             user=user,
+                             total_complaints=len(complaints))
         
     except Exception as e:
         logger.error(f"Error loading complaints: {e}", exc_info=True)
@@ -576,20 +598,26 @@ def submit():
             if len(raw_text) > config.MAX_COMPLAINT_LENGTH:
                 categories = Category.get_all()
                 return render_template('submit.html', categories=categories,
-                                       error=f"Complaint must be under {config.MAX_COMPLAINT_LENGTH} characters")
+                                     error=f"Complaint must be under {config.MAX_COMPLAINT_LENGTH} characters")
 
             category_name = request.form.get('category', '').strip()
             anonymous = request.form.get('anonymous') == 'on'
             
+            # FIXED: Properly handle user_id and student_id
             if current_user and not anonymous:
-                student_id = current_user['student_id']
                 user_id = current_user['id']
-            elif not anonymous:
+                student_id = current_user['student_id']
+                logger.info(f"Logged in user submitting: {user_id}")
+            elif not anonymous and not current_user:
+                # Manual student ID entry (no login)
                 student_id = request.form.get('student_id', 'anonymous').strip()
                 user_id = None
+                logger.info(f"Anonymous with student ID: {student_id}")
             else:
+                # Fully anonymous
                 student_id = None
                 user_id = None
+                logger.info("Fully anonymous submission")
             
             # AI Processing
             try:
@@ -615,20 +643,27 @@ def submit():
             except:
                 embedding = None
 
+            # CRITICAL: Create complaint with user_id
             complaint_data = {
-                'user_id': user_id,
+                'user_id': user_id,  # This is the key field
                 'student_id': student_id,
                 'raw_text': raw_text,
                 'rewritten_text': rewritten_text,
                 'category': category_name,
                 'severity': severity,
-                'cluster_id': None
+                'cluster_id': None,
+                'upvotes': 0
             }
+            
+            logger.info(f"Creating complaint with data: user_id={user_id}, student_id={student_id}")
 
             complaint = Complaint.create(complaint_data)
+            
             if not complaint:
                 categories = Category.get_all()
                 return render_template('submit.html', categories=categories, error="Failed to submit complaint")
+            
+            logger.info(f"✓ Complaint created: {complaint['id']}")
 
             if embedding is not None:
                 Complaint.set_embedding(complaint['id'], embedding)
@@ -645,12 +680,14 @@ def submit():
             except Exception as e:
                 logger.error(f"Cluster update error: {str(e)}")
 
+            flash('Complaint submitted successfully!', 'success')
             return redirect(url_for('success'))
 
         except Exception as e:
-            logger.error(f"Unexpected submission error: {str(e)}")
+            logger.error(f"Unexpected submission error: {str(e)}", exc_info=True)
             categories = Category.get_all()
-            return render_template('submit.html', categories=categories, error="Unexpected error")
+            return render_template('submit.html', categories=categories, 
+                                 error="An error occurred. Please try again.")
 
 @app.route('/success')
 def success():
