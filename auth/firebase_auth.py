@@ -13,7 +13,12 @@ firebase_bp = Blueprint("firebase_bp", __name__)
 
 @firebase_bp.route("/firebase-login", methods=["POST"])
 def firebase_login():
-    """Handle Google Sign-In via Firebase"""
+    """
+    Handle Google Sign-In via Firebase
+    
+    NOTE: Rate limiting is applied in app.py via:
+    limiter.limit(config.AUTH_RATE_LIMIT_FIREBASE)(firebase_bp)
+    """
     try:
         data = request.get_json()
         id_token = data.get("idToken")

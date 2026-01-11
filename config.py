@@ -53,9 +53,23 @@ if SIMILARITY_THRESHOLD < 0 or SIMILARITY_THRESHOLD > 1:
 if MIN_CLUSTER_SIZE < 1:
     raise ValueError("MIN_CLUSTER_SIZE must be at least 1")
 
-# Rate Limiting
-RATE_LIMIT_ENABLED = os.getenv('RATE_LIMIT_ENABLED', 'True').lower() in ('true', '1', 't')
+# General Rate Limiting
+# RATE_LIMIT_ENABLED = os.getenv('RATE_LIMIT_ENABLED', 'True').lower() in ('true', '1', 't')
 RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', '10'))
+RATE_LIMIT_ENABLED = os.getenv('RATE_LIMIT_ENABLED', 'True').lower() in ('true', '1', 't')
+RATELIMIT_STORAGE_URL = os.getenv('RATELIMIT_STORAGE_URL', 'memory://')  # Use Redis in production
+RATELIMIT_STRATEGY = 'fixed-window'  # or 'moving-window'
+RATELIMIT_HEADERS_ENABLED = True  # Send rate limit info in headers
+
+# Authentication specific limits
+AUTH_RATE_LIMIT_LOGIN = os.getenv('AUTH_RATE_LIMIT_LOGIN', '5 per 15 minutes')
+AUTH_RATE_LIMIT_REGISTER = os.getenv('AUTH_RATE_LIMIT_REGISTER', '3 per hour')
+AUTH_RATE_LIMIT_PASSWORD_CHANGE = os.getenv('AUTH_RATE_LIMIT_PASSWORD_CHANGE', '3 per hour')
+AUTH_RATE_LIMIT_FIREBASE = os.getenv('AUTH_RATE_LIMIT_FIREBASE', '10 per 15 minutes')
+
+# General API limits
+API_RATE_LIMIT_DEFAULT = os.getenv('API_RATE_LIMIT_DEFAULT', '100 per hour')
+API_RATE_LIMIT_UPVOTE = os.getenv('API_RATE_LIMIT_UPVOTE', '30 per minute')
 
 # ============================================================================
 # ENHANCED SEVERITY KEYWORDS - COMPREHENSIVE MEDICAL & SAFETY TERMS

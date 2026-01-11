@@ -1,7 +1,9 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from datetime import datetime, timedelta
 import logging
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, CSRFError
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # ========== IMPORT CONFIG FIRST ==========
 import config
@@ -51,6 +53,22 @@ app.config.from_object(config)
 #========== CSRF PROTECTION ============
 csrf = CSRFProtect(app)
 
+# ========== RATE LIMITER SETUP ============
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=[config.API_RATE_LIMIT_DEFAULT],
+    storage_uri=config.RATELIMIT_STORAGE_URL,
+    strategy=config.RATELIMIT_STRATEGY,
+    headers_enabled=config.RATELIMIT_HEADERS_ENABLED
+)
+
+limiter.exempt(lambda: request.path.startswith('/static/'))
+
+print(f"✓ Rate limiter initialized")
+print(f"✓ Login limit: {config.AUTH_RATE_LIMIT_LOGIN}")
+print(f"✓ Register limit: {config.AUTH_RATE_LIMIT_REGISTER}")
+
 # ========== SESSION CONFIGURATION ==========
 app.secret_key = config.SECRET_KEY
 app.config['SECRET_KEY'] = config.SECRET_KEY
@@ -90,9 +108,10 @@ app.jinja_env.globals.update({
 
 # ========== REGISTER BLUEPRINTS ==========
 from auth.firebase_auth import firebase_bp
+limiter.limit(config.AUTH_RATE_LIMIT_FIREBASE)(firebase_bp)
 app.register_blueprint(firebase_bp)
-
 csrf.exempt(firebase_bp)
+print(f"✓ Firebase blueprint registered with rate limit: {config.AUTH_RATE_LIMIT_FIREBASE}")
 
 # ========== CONFIGURE LOGGING ==========
 logging.basicConfig(
@@ -124,6 +143,41 @@ def internal_error(error):
     logger.error(f"Internal error: {str(error)}")
     return render_template('error.html', error_code=500, error_message="Internal server error"), 500
 
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    """Handle rate limit exceeded errors"""
+    logger.warning(f"Rate limit exceeded: {request.remote_addr} on {request.path}")
+    
+    # Check if it's an API request (JSON)
+    if request.path.startswith('/api/') or request.path.startswith('/complaint/'):
+        return jsonify({
+            'success': False,
+            'error': 'Rate limit exceeded. Please try again later.',
+            'retry_after': e.description
+        }), 429
+    
+    # For regular pages, show error template
+    return render_template('error.html', 
+                         error_code=429, 
+                         error_message="Too many requests. Please slow down and try again in a few minutes."), 429
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    """Handle CSRF validation errors gracefully"""
+    logger.warning(f"CSRF error: {e.description} from {request.remote_addr}")
+    
+    # For API endpoints, return JSON
+    if request.path.startswith('/api/') or request.accept_mimetypes.accept_json:
+        return jsonify({
+            'success': False,
+            'error': 'CSRF validation failed. Please refresh the page and try again.'
+        }), 400
+    
+    # For regular pages, show user-friendly error
+    return render_template('error.html', 
+                         error_code=400, 
+                         error_message="Security validation failed. Please refresh the page and try again."), 400
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     logger.error(f"Unhandled exception: {str(e)}", exc_info=True)
@@ -146,8 +200,9 @@ def index():
 # ============================================================================
 
 @app.route('/register', methods=['GET', 'POST'])
+@limiter.limit(config.AUTH_RATE_LIMIT_REGISTER, methods=['POST'])
 def register():
-    """User registration page"""
+    """User registration page with rate limiting"""
     if get_current_user():
         return redirect(url_for('profile'))
     
@@ -193,12 +248,12 @@ def register():
         existing_user = User.get_by_email(email)
         if existing_user:
             logger.warning(f"Registration attempt with existing email: {email}")
-            return render_template('register.html', error="Email already registered")
+            return render_template('register.html', error="An account with this email already exists")
         
         existing_student = User.get_by_student_id(student_id)
         if existing_student:
             logger.warning(f"Registration attempt with existing student ID: {student_id}")
-            return render_template('register.html', error="Student ID already registered")
+            return render_template('register.html', error="An account with this student ID already exists")
         
         # Create user
         from werkzeug.security import generate_password_hash
@@ -206,7 +261,7 @@ def register():
             'name': name,
             'student_id': student_id,
             'email': email,
-            'password_hash': generate_password_hash(password, method='pbkdf2:sha256'),
+            'password_hash': generate_password_hash(password, method='pbkdf2:sha256:600000'),
             'department': department if department else None,
             'year': year if year else None,
             'hostel': hostel if hostel else None,
@@ -243,9 +298,11 @@ def register():
         logger.error(f"Error during registration: {e}", exc_info=True)
         return render_template('register.html', error="An error occurred. Please try again.")
 
+
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit(config.AUTH_RATE_LIMIT_LOGIN, methods=['POST'])
 def login():
-    """User login page"""
+    """User login page with rate limiting"""
     if get_current_user():
         return redirect(url_for('profile'))
     
@@ -259,23 +316,19 @@ def login():
         if not identifier or not password:
             return render_template('login.html', error="Please enter both email/student ID and password")
         
-        allowed, remaining = check_rate_limit(identifier, 'login_attempt', limit=5)
-        if not allowed:
-            logger.warning(f"Rate limit exceeded for login: {identifier}")
-            return render_template('login.html', error="Too many login attempts. Please try again in 15 minutes.")
-        
         # Find user by email or student ID
         user = User.get_by_email(identifier.lower())
         if not user:
             user = User.get_by_student_id(identifier.upper())
         
         if not user:
-            return render_template('login.html', error="Invalid email/student ID or password")
+            # Generic error to prevent account enumeration
+            return render_template('login.html', error="Invalid credentials. Please try again.")
         
         # Check password
         from werkzeug.security import check_password_hash
         if not check_password_hash(user['password_hash'], password):
-            return render_template('login.html', error="Invalid email/student ID or password")
+            return render_template('login.html', error="Invalid credentials. Please try again.")
         
         if not user.get('is_active', True):
             return render_template('login.html', error="Your account has been deactivated. Please contact support.")
@@ -501,8 +554,9 @@ def edit_profile():
 
 @app.route('/change-password', methods=['GET', 'POST'])
 @login_required
+@limiter.limit(config.AUTH_RATE_LIMIT_PASSWORD_CHANGE, methods=['POST'])
 def change_password():
-    """Change user password"""
+    """Change user password with rate limiting"""
     try:
         if request.method == 'GET':
             return render_template('change_password.html')
@@ -531,7 +585,7 @@ def change_password():
             return render_template('change_password.html', error=error_msg)
         
         # Update password
-        new_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
+        new_hash = generate_password_hash(new_password, method='pbkdf2:sha256:600000')
         if User.update(user['id'], {'password_hash': new_hash}):
             logger.info(f"Password changed for user: {user['student_id']}")
             flash('Password changed successfully!', 'success')
@@ -797,8 +851,9 @@ def cluster_detail(cluster_id):
 
 @app.route('/complaint/<complaint_id>/upvote', methods=['POST'])
 @csrf.exempt
+@limiter.limit(config.API_RATE_LIMIT_UPVOTE)
 def upvote_complaint(complaint_id):
-    """API endpoint to upvote a complaint"""
+    """API endpoint to upvote a complaint with rate limiting"""
     try:
         logger.info(f"Upvote request for complaint: {complaint_id}")
         
@@ -877,6 +932,16 @@ def health_check():
             'status': 'unhealthy',
             'error': str(e)
         }), 503
+    
+@app.route('/test-rate-limit')
+@limiter.limit("3 per minute")
+def test_rate_limit():
+    """Test route to verify rate limiting works"""
+    return jsonify({
+        'success': True,
+        'message': 'Rate limit test successful',
+        'timestamp': datetime.utcnow().isoformat()
+    })
 
 if __name__ == '__main__':
     import os
