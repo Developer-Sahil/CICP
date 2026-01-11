@@ -7,7 +7,7 @@ load_dotenv()
 
 # Flask Configuration
 SECRET_KEY = os.getenv('SECRET_KEY')
-if not SECRET_KEY or SECRET_KEY == 'dev-secret-key-change-in-production':
+if not SECRET_KEY:
     SECRET_KEY = secrets.token_hex(32)
     print("WARNING: Using auto-generated SECRET_KEY. Set SECRET_KEY in .env for production!")
 
@@ -238,7 +238,7 @@ LOG_FILE = os.getenv('LOG_FILE', 'app.log')
 # Session Configuration
 SESSION_COOKIE_SECURE = False
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = 'Strict'
 PERMANENT_SESSION_LIFETIME = int(os.getenv('SESSION_LIFETIME', '3600'))
 
 # CSRF Protection

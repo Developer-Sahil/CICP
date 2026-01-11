@@ -1,7 +1,3 @@
-# ============================================================================
-# PART 2: Replace auth/firebase_auth.py with this FIXED version
-# ============================================================================
-
 from flask import Blueprint, request, jsonify, session
 from firebase_admin import auth
 import firebase_admin
@@ -17,7 +13,7 @@ firebase_bp = Blueprint("firebase_bp", __name__)
 
 @firebase_bp.route("/firebase-login", methods=["POST"])
 def firebase_login():
-    """Handle Google Sign-In via Firebase - FIXED VERSION"""
+    """Handle Google Sign-In via Firebase"""
     try:
         data = request.get_json()
         id_token = data.get("idToken")
@@ -67,7 +63,7 @@ def firebase_login():
                 'name': name,
                 'email': email,
                 'is_google': True,
-                'student_id': email.split('@')[0].upper()[:15],  # Limit to 15 chars
+                'student_id': email.split('@')[0].upper()[:15],
                 'password_hash': '',
                 'is_admin': False,
                 'is_active': True,
@@ -88,13 +84,13 @@ def firebase_login():
         else:
             logger.info(f"✓ Existing user found: {email}")
         
-        # CRITICAL: Update last login
+        # Update last login
         User.update_last_login(user['id'])
         
-        # CRITICAL: Clear any existing session first
+        # Clear any existing session first
         session.clear()
         
-        # CRITICAL: Set session with explicit values
+        # Set session with explicit values
         session['user_id'] = user['id']
         session['email'] = user['email']
         session['name'] = user['name']
@@ -118,8 +114,6 @@ def firebase_login():
         session.modified = True
         
         logger.info(f"✓ Session set for user: {email}")
-        logger.info(f"  logged_in: {session.get('logged_in')}")
-        logger.info(f"  user_id: {session.get('user_id')}")
         
         return jsonify({
             "status": "success",

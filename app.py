@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from datetime import datetime, timedelta
 import logging
+from flask_wtf.csrf import CSRFProtect
 
 # ========== IMPORT CONFIG FIRST ==========
 import config
@@ -47,6 +48,9 @@ from auth.auth import (
 app = Flask(__name__)
 app.config.from_object(config)
 
+#========== CSRF PROTECTION ============
+csrf = CSRFProtect(app)
+
 # ========== SESSION CONFIGURATION ==========
 app.secret_key = config.SECRET_KEY
 app.config['SECRET_KEY'] = config.SECRET_KEY
@@ -58,12 +62,13 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 # Session cookie settings
 app.config['SESSION_COOKIE_NAME'] = 'cicp_session'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # CHANGED from 'Lax' to 'None'
-app.config['SESSION_COOKIE_SECURE'] = True      # CHANGED from False to True (required for SameSite=None)
+app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
+app.config['SESSION_COOKIE_SECURE'] = True     
 app.config['SESSION_COOKIE_DOMAIN'] = None 
 
 print(f"✓ Secret key configured: {app.secret_key[:10]}...")
 print(f"✓ Session lifetime: {app.config['PERMANENT_SESSION_LIFETIME']}")
+print(f"✓ CSRF Protection enabled")
 
 # ========== JINJA GLOBALS ==========
 app.jinja_env.globals.update(
@@ -86,6 +91,8 @@ app.jinja_env.globals.update({
 # ========== REGISTER BLUEPRINTS ==========
 from auth.firebase_auth import firebase_bp
 app.register_blueprint(firebase_bp)
+
+csrf.exempt(firebase_bp)
 
 # ========== CONFIGURE LOGGING ==========
 logging.basicConfig(
@@ -789,6 +796,7 @@ def cluster_detail(cluster_id):
 # ============================================================================
 
 @app.route('/complaint/<complaint_id>/upvote', methods=['POST'])
+@csrf.exempt
 def upvote_complaint(complaint_id):
     """API endpoint to upvote a complaint"""
     try:
@@ -827,6 +835,7 @@ def upvote_complaint(complaint_id):
         }), 500
 
 @app.route('/api/rewrite', methods=['POST'])
+@csrf.exempt
 def api_rewrite():
     try:
         data = request.get_json()
