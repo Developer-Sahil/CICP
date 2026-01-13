@@ -5,8 +5,9 @@ import logging
 
 genai.configure(api_key=config.GEMINI_API_KEY)
 logger = logging.getLogger(__name__)
+SeverityLevel = str
 
-def detect_severity(complaint_text):
+def detect_severity(complaint_text:str)->str:
     """
     Detect severity level of a complaint using multi-layer AI analysis.
     
@@ -103,8 +104,9 @@ Return ONLY one word: high, medium, or low"""
         # Fallback to enhanced keyword-based detection
         return detect_severity_enhanced_fallback(complaint_text)
 
+from typing import Optional
 
-def detect_critical_keywords(complaint_text):
+def detect_critical_keywords(complaint_text: str) -> Optional[str]:
     """
     Critical keyword detection - immediately return HIGH for certain terms.
     
@@ -170,7 +172,7 @@ def detect_critical_keywords(complaint_text):
     return None
 
 
-def calculate_severity_score(complaint_text):
+def calculate_severity_score(complaint_text: str) -> int:
     """
     Calculate numerical severity score (0-10) for verification.
     
@@ -236,7 +238,7 @@ def calculate_severity_score(complaint_text):
     return min(score, 10)
 
 
-def extract_severity_from_response(response_text):
+def extract_severity_from_response(response_text: str) -> str:
     """
     Extract severity level from AI response text.
     
@@ -261,7 +263,7 @@ def extract_severity_from_response(response_text):
     return 'medium'
 
 
-def detect_severity_enhanced_fallback(complaint_text):
+def detect_severity_enhanced_fallback(complaint_text: str) -> str:
     """
     Enhanced fallback keyword-based severity detection if AI fails.
     
@@ -290,7 +292,9 @@ def detect_severity_enhanced_fallback(complaint_text):
         return 'low'
 
 
-def detect_severity_fallback(complaint_text):
+from typing import List
+
+def detect_batch_severity(complaint_text: List[str]) -> List[SeverityLevel]:
     """
     Original fallback for backwards compatibility.
     
@@ -303,7 +307,7 @@ def detect_severity_fallback(complaint_text):
     return detect_severity_enhanced_fallback(complaint_text)
 
 
-def get_severity_score(severity):
+def get_severity_score(severity: SeverityLevel)->int:
     """
     Convert severity to numerical score for sorting/analysis.
     
@@ -339,8 +343,9 @@ def detect_batch_severity(complaint_texts):
     
     return severities
 
+from typing import Dict
 
-def explain_severity(complaint_text, severity):
+def explain_severity(complaint_text: str, severity: SeverityLevel) -> Dict[str, object]:
     """
     Provide explanation for severity classification.
     
@@ -351,26 +356,27 @@ def explain_severity(complaint_text, severity):
     Returns:
         dict: Explanation with reasons
     """
-    text_lower = complaint_text.lower()
-    reasons = []
+    text = complaint_text.lower()
+    critical = detect_critical_keywords(complaint_text)
+    reasons = List[str] = []
     
     # Check what triggered this severity
     if severity == 'high':
-        if any(term in text_lower for term in ['hospital', 'injury', 'emergency']):
+        if any(term in text for term in ['hospital', 'injury', 'emergency']):
             reasons.append("Health/medical emergency detected")
-        if any(term in text_lower for term in ['danger', 'unsafe', 'fire', 'hazard']):
+        if any(term in text for term in ['danger', 'unsafe', 'fire', 'hazard']):
             reasons.append("Safety hazard identified")
-        if any(term in text_lower for term in ['poison', 'contaminated', 'sick']):
+        if any(term in text for term in ['poison', 'contaminated', 'sick']):
             reasons.append("Health risk to students")
-        if calculate_severity_score(text_lower) >= 8:
+        if calculate_severity_score(text) >= 8:
             reasons.append("High severity score based on multiple factors")
     
     elif severity == 'medium':
-        if any(term in text_lower for term in ['problem', 'issue', 'broken']):
+        if any(term in text for term in ['problem', 'issue', 'broken']):
             reasons.append("Service disruption or quality issue")
-        if any(term in text_lower for term in ['delay', 'slow', 'poor']):
+        if any(term in text for term in ['delay', 'slow', 'poor']):
             reasons.append("Performance or quality concerns")
-        if calculate_severity_score(text_lower) >= 4:
+        if calculate_severity_score(text) >= 4:
             reasons.append("Moderate severity score")
     
     else:  # low

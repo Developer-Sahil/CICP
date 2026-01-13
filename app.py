@@ -5,6 +5,7 @@ from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
+
 # ========== IMPORT CONFIG FIRST ==========
 import config
 
@@ -37,6 +38,7 @@ from ai.cluster import assign_cluster, update_clusters
 
 # ========== IMPORT UTILITIES ==========
 from utils.firebase_helpers import get_dashboard_stats, get_recent_complaints
+from utils.error_handler import handle_errors
 
 # ========== IMPORT AUTH ==========
 from auth.auth import (
@@ -188,6 +190,7 @@ def handle_exception(e):
 # PUBLIC ROUTES
 # ============================================================================
 @app.route('/')
+@handle_errors()
 def index():
     try:
         return render_template('index.html')
@@ -368,6 +371,7 @@ def logout():
 
 @app.route('/profile')
 @login_required
+@handle_errors()
 def profile():
     """User profile page"""
     try:
@@ -440,6 +444,7 @@ def profile():
 
 @app.route('/my-complaints')
 @login_required
+@handle_errors()
 def my_complaints():
     """View all user complaints - FIXED VERSION"""
     try:
@@ -508,6 +513,7 @@ def my_complaints():
 
 @app.route('/edit-profile', methods=['GET', 'POST'])
 @login_required
+@handle_errors()
 def edit_profile():
     """Edit user profile"""
     try:
@@ -555,6 +561,7 @@ def edit_profile():
 @app.route('/change-password', methods=['GET', 'POST'])
 @login_required
 @limiter.limit(config.AUTH_RATE_LIMIT_PASSWORD_CHANGE, methods=['POST'])
+@handle_errors()
 def change_password():
     """Change user password with rate limiting"""
     try:
@@ -602,6 +609,7 @@ def change_password():
 # ============================================================================
 
 @app.route('/submit', methods=['GET', 'POST'])
+@handle_errors()
 def submit():
     """Complaint submission page"""
     if request.method == 'GET':
@@ -763,6 +771,7 @@ def success():
 # ============================================================================
 
 @app.route('/dashboard')
+@handle_errors()
 def dashboard():
     """Admin dashboard"""
     try:
@@ -827,6 +836,7 @@ def dashboard():
                              error="Error loading dashboard data")
 
 @app.route('/cluster/<cluster_id>')
+@handle_errors()
 def cluster_detail(cluster_id):
     try:
         cluster = IssueCluster.get_by_id(cluster_id)
@@ -850,6 +860,7 @@ def cluster_detail(cluster_id):
 # ============================================================================
 
 @app.route('/complaint/<complaint_id>/upvote', methods=['POST'])
+@handle_errors(return_json=True)
 @csrf.exempt
 @limiter.limit(config.API_RATE_LIMIT_UPVOTE)
 def upvote_complaint(complaint_id):
@@ -891,30 +902,29 @@ def upvote_complaint(complaint_id):
 
 @app.route('/api/rewrite', methods=['POST'])
 @csrf.exempt
+@handle_errors(return_json=True)
 def api_rewrite():
-    try:
-        data = request.get_json()
-        raw_text = data.get('text', '').strip()
-        if not raw_text:
-            return jsonify({'error': 'No text provided'}), 400
-        rewritten = rewrite_complaint(raw_text)
-        return jsonify({'rewritten_text': rewritten})
-    except:
-        return jsonify({'error': 'Rewrite failed'}), 500
+    data = request.get_json()
+    raw_text = data.get('text', '').strip()
 
+    if not raw_text:
+        return jsonify({'error': 'No text provided'}), 400
+
+    rewritten = rewrite_complaint(raw_text)
+    return jsonify({'rewritten_text': rewritten})
+
+   
 @app.route('/api/stats')
 def api_stats():
-    try:
         stats = get_dashboard_stats()
         return jsonify(stats)
-    except:
-        return jsonify({'error': 'Stats fetch failed'}), 500
 
 # ============================================================================
 # UTILITY ROUTES
 # ============================================================================
 
 @app.route('/health')
+@handle_errors(return_json=True)
 def health_check():
     try:
         category_count = Category.count()

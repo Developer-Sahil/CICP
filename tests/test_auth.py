@@ -20,9 +20,7 @@ def test_authentication():
     
     # Step 1: Check if any users exist
     print("Step 1: Checking existing users...")
-    test_email = "test@vitapstudent.ac.in"
     user = User.get_by_email(test_email)
-    
     if user:
         print(f"✓ Found existing user: {user['email']}")
         print(f"  Name: {user['name']}")
